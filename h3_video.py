@@ -11,6 +11,17 @@ def model_files(category, prefix, preferred):
     return names or [preferred]
 
 
+def visual_prompt(prompt):
+    lines = [line for line in prompt.splitlines() if not (
+        "对白：{" in line or "画外音：{" in line or
+        line.startswith("上一镜的说话声") or
+        line.startswith("只保留与动作相符的现场声：") or
+        line.startswith("严禁 BGM、")
+    )]
+    lines.append("只拍摄人物动作与场景，不叠加屏幕图形或字符。")
+    return "\n".join(lines)
+
+
 class AstroGateMiniMaxH3Video(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -23,7 +34,7 @@ class AstroGateMiniMaxH3Video(io.ComfyNode):
                            if Path(name).name.startswith("minimax_h3_fl2v_turbo_") and name.lower().endswith(".safetensors")]]
         return io.Schema(
             node_id="AstroGateMiniMaxH3Video", display_name="MiniMax H3 · 分镜图生视频", category="video/AstroGate",
-            description="连接分镜首帧和视频提示词，使用本机已安装的 MiniMax H3 模型生成含现场声的视频。不会下载模型。",
+            description="连接分镜首帧生成视频。默认静音；H3 原声可能与台词、语言不符。可连接已对齐的成品音轨。不会下载模型。",
             enable_expand=True,
             inputs=[io.Image.Input("first_frame", display_name="分镜首帧", raw_link=True),
                     io.String.Input("prompt", display_name="视频提示词", default="", multiline=True),
@@ -37,13 +48,16 @@ class AstroGateMiniMaxH3Video(io.ComfyNode):
                     io.Int.Input("width", display_name="视频宽度", default=1024, min=32, max=16384, step=32, advanced=True),
                     io.Int.Input("height", display_name="视频高度", default=576, min=32, max=16384, step=32, advanced=True),
                     io.Int.Input("steps", display_name="采样步数（0 自动）", default=0, min=0, advanced=True),
-                    io.Int.Input("seed", display_name="种子", default=0, min=0, advanced=True)],
+                    io.Int.Input("seed", display_name="种子", default=0, min=0, advanced=True),
+                    io.Combo.Input("audio_mode", display_name="声音", options=["静音", "H3 原声"], default="静音", optional=True),
+                    io.Audio.Input("soundtrack", display_name="已对齐音轨", optional=True, raw_link=True,
+                                   tooltip="接入本镜已配好的完整音轨；角色声线样本不能直接当作台词。")],
             outputs=[io.Video.Output(display_name="视频")],
         )
 
     @classmethod
     def execute(cls, first_frame, prompt, model_name, text_encoder, video_vae, audio_vae, turbo_lora,
-                duration, width, height, steps, seed):
+                duration, width, height, steps, seed, audio_mode="静音", soundtrack=None):
         if not prompt.strip():
             raise ValueError("请填写本镜视频提示词。")
         graph = GraphBuilder()
@@ -52,11 +66,11 @@ class AstroGateMiniMaxH3Video(io.ComfyNode):
             model = graph.node("LoraLoaderModelOnly", model=model.out(0), lora_name=turbo_lora, strength_model=1)
         clip = graph.node("CLIPLoader", clip_name=text_encoder, type="minimax", device="default")
         video = graph.node("VAELoader", vae_name=video_vae)
-        audio = graph.node("VAELoader", vae_name=audio_vae)
         frames = max(5, round(duration * 24))
         frames += (5 - frames % 17) % 17
         conditioned = graph.node("MiniMaxH3ImageToVideo", clip=clip.out(0), vae=video.out(0), first_frame=first_frame,
-                                 prompt=prompt, width=width, height=height, length=frames)
+                                 prompt=prompt if audio_mode == "H3 原声" and soundtrack is None else visual_prompt(prompt),
+                                 width=width, height=height, length=frames)
         guider = graph.node("BasicGuider", model=model.out(0), conditioning=conditioned.out(0))
         sampler = graph.node("KSamplerSelect", sampler_name="res_multistep")
         scheduler = graph.node("BasicScheduler", model=model.out(0), scheduler="simple",
@@ -65,6 +79,11 @@ class AstroGateMiniMaxH3Video(io.ComfyNode):
         sampled = graph.node("SamplerCustomAdvanced", noise=noise.out(0), guider=guider.out(0),
                              sampler=sampler.out(0), sigmas=scheduler.out(0), latent_image=conditioned.out(1))
         frames = graph.node("VAEDecode", samples=sampled.out(0), vae=video.out(0))
-        sound = graph.node("VAEDecodeAudio", samples=sampled.out(0), vae=audio.out(0))
-        result = graph.node("CreateVideo", images=frames.out(0), audio=sound.out(0), fps=24, bit_depth=8, color_space="sRGB")
+        if soundtrack is None and audio_mode == "H3 原声":
+            audio = graph.node("VAELoader", vae_name=audio_vae)
+            soundtrack = graph.node("VAEDecodeAudio", samples=sampled.out(0), vae=audio.out(0)).out(0)
+        video_inputs = {"images": frames.out(0), "fps": 24, "bit_depth": 8, "color_space": "sRGB"}
+        if soundtrack is not None:
+            video_inputs["audio"] = soundtrack
+        result = graph.node("CreateVideo", **video_inputs)
         return io.NodeOutput(result.out(0), expand=graph.finalize())

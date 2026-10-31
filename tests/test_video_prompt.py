@@ -130,7 +130,7 @@ def test_minimax_h3_expansion_uses_existing_native_nodes_and_connected_first_fra
     assert schema.category == "video/AstroGate"
     assert schema.outputs[0].io_type == "VIDEO"
     result = modules.node.AstroGateMiniMaxH3Video.execute(
-        first_frame=["shot", 0], prompt="人物走向门口。严禁 BGM 和字幕。",
+        first_frame=["shot", 0], prompt="人物走向门口。\n周野对白：{你先走}。\n严禁 BGM、配乐、歌曲、字幕、新增画内文字和水印。",
         model_name="minimax_h3_fl2va_pruned_int8_convrot.safetensors",
         text_encoder="qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
         video_vae="minimax_h3_video_vae_fp16.safetensors", audio_vae="minimax_h3_audio_vae_fp32.safetensors",
@@ -139,10 +139,33 @@ def test_minimax_h3_expansion_uses_existing_native_nodes_and_connected_first_fra
     by_type = {item["class_type"]: item["inputs"] for item in graph.values()}
     assert by_type["MiniMaxH3ImageToVideo"]["first_frame"] == ["shot", 0]
     assert by_type["MiniMaxH3ImageToVideo"]["length"] == 73
+    assert "周野对白" not in by_type["MiniMaxH3ImageToVideo"]["prompt"]
+    assert "字幕" not in by_type["MiniMaxH3ImageToVideo"]["prompt"]
     assert by_type["BasicScheduler"]["steps"] == 8
     assert by_type["CreateVideo"]["fps"] == 24
-    assert by_type["CreateVideo"]["audio"][0] in graph
+    assert "audio" not in by_type["CreateVideo"]
+    assert "VAEDecodeAudio" not in by_type
     assert result.result[0][0] in graph
+
+    model_audio = modules.node.AstroGateMiniMaxH3Video.execute(
+        first_frame=["shot", 0], prompt="周野对白：{你先走}。",
+        model_name="minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        text_encoder="qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        video_vae="minimax_h3_video_vae_fp16.safetensors", audio_vae="minimax_h3_audio_vae_fp32.safetensors",
+        turbo_lora="none", duration=3, width=1024, height=576, steps=8, seed=7, audio_mode="H3 原声")
+    model_graph = {item["class_type"]: item["inputs"] for item in model_audio.expand.values()}
+    assert "VAEDecodeAudio" in model_graph
+    assert "audio" in model_graph["CreateVideo"]
+
+    supplied = modules.node.AstroGateMiniMaxH3Video.execute(
+        first_frame=["shot", 0], prompt="周野对白：{你先走}。",
+        model_name="minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        text_encoder="qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        video_vae="minimax_h3_video_vae_fp16.safetensors", audio_vae="minimax_h3_audio_vae_fp32.safetensors",
+        turbo_lora="none", duration=3, width=1024, height=576, steps=8, seed=7, soundtrack=["voice", 0])
+    supplied_graph = {item["class_type"]: item["inputs"] for item in supplied.expand.values()}
+    assert supplied_graph["CreateVideo"]["audio"] == ["voice", 0]
+    assert "VAEDecodeAudio" not in supplied_graph
 
 
 def test_native_storyboard_frame_stores_video_prompt_without_changing_image_prompt(modules, project):
