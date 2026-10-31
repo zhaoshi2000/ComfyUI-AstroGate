@@ -1,0 +1,12 @@
+.ag-jimeng{box-sizing:border-box;width:100%;height:100%;padding:10px;color:#dce8f1;background:#17212a;border:1px solid #3d5568;border-radius:8px;font:13px/1.4 system-ui,sans-serif}
+.ag-jimeng strong{display:block;color:#ecf6fc}
+.ag-jimeng-note{margin:4px 0 9px;color:#9db4c5;font-size:11px}
+.ag-jimeng-actions{display:flex;gap:6px}
+.ag-jimeng button{font:inherit;font-size:12px;color:#ecf6fc;background:#2b3b48;border:1px solid #536778;border-radius:5px;padding:6px 9px;cursor:pointer}
+.ag-jimeng button.primary{background:#1678bd;border-color:#3798d8;color:white}
+.ag-jimeng button:disabled{opacity:.55;cursor:wait}
+.ag-jimeng-code{display:flex;align-items:center;gap:7px;margin-top:8px;padding:6px;background:#10171d;border-radius:4px}
+.ag-jimeng-code code{flex:1;overflow:hidden;color:#82d4ff;font-size:11px;line-height:1.2;overflow-wrap:anywhere;user-select:text}
+.ag-jimeng-code span{flex:0 0 auto;color:#8ca5b7;font-size:10px}
+.ag-jimeng-status{margin-top:8px;color:#aec4d4;font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+.ag-jimeng-status.error{color:#ffad9d}

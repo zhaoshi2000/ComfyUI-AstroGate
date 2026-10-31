@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "AstroGate 即梦浏览器桥接",
+  "version": "0.1.0",
+  "description": "将本机 ComfyUI 的图生视频任务交给当前已登录的即梦网页执行。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://jimeng.jianying.com/*",
+    "http://127.0.0.1:8190/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "AstroGate 即梦桥接",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://jimeng.jianying.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

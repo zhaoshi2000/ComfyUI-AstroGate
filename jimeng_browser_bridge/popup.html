@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>AstroGate 即梦桥接</title>
+    <style>
+      body { background: #14171d; color: #e7eef8; font: 13px/1.45 system-ui, sans-serif; margin: 0; width: 310px; }
+      main { padding: 16px; }
+      h1 { font-size: 15px; margin: 0 0 8px; }
+      p { color: #aeb9c8; margin: 0 0 12px; }
+      label { display: block; font-weight: 600; margin-bottom: 6px; }
+      input { background: #0d1015; border: 1px solid #38485b; border-radius: 6px; box-sizing: border-box; color: #f5f8fc; font-family: ui-monospace, monospace; padding: 8px; width: 100%; }
+      button { background: #1399e8; border: 0; border-radius: 6px; color: white; cursor: pointer; font-weight: 600; margin-top: 10px; padding: 8px 12px; width: 100%; }
+      button:disabled { cursor: wait; opacity: .65; }
+      #status { color: #aeb9c8; min-height: 20px; margin: 10px 0 0; }
+      #status.error { color: #ff8989; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AstroGate 即梦桥接</h1>
+      <p>打开已登录的即梦图生视频页面，粘贴 ComfyUI 节点中生成的连接码。</p>
+      <label for="code">一次性连接码</label>
+      <input id="code" autocomplete="off" spellcheck="false" placeholder="粘贴连接码">
+      <button id="connect" type="button">连接当前页面</button>
+      <p id="status" aria-live="polite"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

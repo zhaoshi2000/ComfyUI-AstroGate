@@ -1,0 +1,1041 @@
+{
+  "last_node_id": 11,
+  "last_link_id": 17,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        60,
+        150
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "value",
+          "type": "STRING",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ],
+      "title": "统一角色设定 · 连接全部生成节点",
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "同一位成年女性旅行者，约 28 岁。短黑发，左耳佩戴银色月牙耳坠，芥末黄围巾，深蓝色短外套，棕色斜挎包从右肩斜向左髋，黑色靴子。\n所有图片保持同一张脸、同一发型、同一身材比例，以及服装和配饰的版型、材质、配色与数量。左右均指角色自身的左右，不能镜像互换耳坠、肩带或包体位置。\n有参考图时，参考图 1 是人物身份与造型的最终基准；其余参考图只辅助理解其他角度，不得覆盖基准。画面不含文字、标签、标志或水印。"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "AstroGateImage",
+      "pos": [
+        540,
+        150
+      ],
+      "size": [
+        400,
+        620
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reference_images.reference_1",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": null
+        },
+        {
+          "name": "resolution",
+          "type": "COMBO",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": null
+        },
+        {
+          "name": "quality",
+          "type": "COMBO",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "name": "consistency",
+          "type": "STRING",
+          "widget": {
+            "name": "consistency"
+          },
+          "link": 1
+        },
+        {
+          "name": "view",
+          "type": "COMBO",
+          "widget": {
+            "name": "view"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6,
+            7,
+            9,
+            11,
+            13
+          ]
+        }
+      ],
+      "title": "01 · 场景人物基准",
+      "properties": {
+        "Node name for S&R": "AstroGateImage"
+      },
+      "widgets_values": [
+        "生成一张写实的人物旅行摄影：一位成年女性旅行者站在清晨安静的小镇车站外，背景是柔和虚化的站台和石板路。人物以自然的三分之四站姿入镜，面部清晰，从头顶到靴底完整呈现，四周留出余量。让左耳月牙耳坠、芥末黄围巾、短外套和斜挎包的穿戴关系尽量清楚。单人、单幅画面，自然光，真实材质。该图将作为后续各视角的统一人物基准。",
+        "gpt-image-2",
+        "3:4",
+        "1K",
+        "medium",
+        "",
+        "自由",
+        0
+      ]
+    },
+    {
+      "id": 3,
+      "type": "SaveImage",
+      "pos": [
+        540,
+        850
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 13
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "01 · 场景人物基准 · 保存与预览",
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "AstroGate/character/base"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "AstroGateImage",
+      "pos": [
+        1000,
+        150
+      ],
+      "size": [
+        400,
+        620
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reference_images.reference_1",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 6
+        },
+        {
+          "name": "reference_images.reference_2",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": null
+        },
+        {
+          "name": "resolution",
+          "type": "COMBO",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": null
+        },
+        {
+          "name": "quality",
+          "type": "COMBO",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "name": "consistency",
+          "type": "STRING",
+          "widget": {
+            "name": "consistency"
+          },
+          "link": 2
+        },
+        {
+          "name": "view",
+          "type": "COMBO",
+          "widget": {
+            "name": "view"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            8,
+            12,
+            14
+          ]
+        }
+      ],
+      "title": "02 · 正面全身",
+      "properties": {
+        "Node name for S&R": "AstroGateImage"
+      },
+      "widgets_values": [
+        "参考图 1 是角色基准，严格保留她的身份、脸部五官、短发、服装和配饰。只生成一张该人物的正面全身单视图：身体和视线正对镜头，双臂自然垂放，双脚完整可见，人物居中，浅灰色干净背景，柔和均匀光线。月牙耳坠仍在角色自身左耳，棕色包带仍从右肩斜向左髋。不要拼接多视图，不要增加其他人物。",
+        "gpt-image-2",
+        "3:4",
+        "1K",
+        "medium",
+        "",
+        "正面",
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "type": "SaveImage",
+      "pos": [
+        1000,
+        850
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 14
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "02 · 正面全身 · 保存与预览",
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "AstroGate/character/front"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "AstroGateImage",
+      "pos": [
+        1460,
+        150
+      ],
+      "size": [
+        400,
+        620
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reference_images.reference_1",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 7
+        },
+        {
+          "name": "reference_images.reference_2",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 8
+        },
+        {
+          "name": "reference_images.reference_3",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": null
+        },
+        {
+          "name": "resolution",
+          "type": "COMBO",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": null
+        },
+        {
+          "name": "quality",
+          "type": "COMBO",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "name": "consistency",
+          "type": "STRING",
+          "widget": {
+            "name": "consistency"
+          },
+          "link": 3
+        },
+        {
+          "name": "view",
+          "type": "COMBO",
+          "widget": {
+            "name": "view"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            10,
+            15
+          ]
+        }
+      ],
+      "title": "03 · 背面全身",
+      "properties": {
+        "Node name for S&R": "AstroGateImage"
+      },
+      "widgets_values": [
+        "参考图 1 是角色基准；参考图 2 是正面辅助图，只用于核对身份、服装与配饰，不得覆盖图 1 基准。只生成一张该人物的严格背面全身单视图，背对镜头，不回头；从头顶到靴底完整呈现，浅灰色干净背景，柔和均匀光线。准确延续短黑发、围巾后部、深蓝短外套背部，以及从角色自身右肩通向左髋包体的真实穿戴结构。不要将正面五官画在后脑，不要镜像包带，不要拼接多视图。",
+        "gpt-image-2",
+        "3:4",
+        "1K",
+        "medium",
+        "",
+        "背面",
+        0
+      ]
+    },
+    {
+      "id": 7,
+      "type": "SaveImage",
+      "pos": [
+        1460,
+        850
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 15
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "03 · 背面全身 · 保存与预览",
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "AstroGate/character/back"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "AstroGateImage",
+      "pos": [
+        1920,
+        150
+      ],
+      "size": [
+        400,
+        620
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reference_images.reference_1",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 9
+        },
+        {
+          "name": "reference_images.reference_2",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 10
+        },
+        {
+          "name": "reference_images.reference_3",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": null
+        },
+        {
+          "name": "resolution",
+          "type": "COMBO",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": null
+        },
+        {
+          "name": "quality",
+          "type": "COMBO",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "name": "consistency",
+          "type": "STRING",
+          "widget": {
+            "name": "consistency"
+          },
+          "link": 4
+        },
+        {
+          "name": "view",
+          "type": "COMBO",
+          "widget": {
+            "name": "view"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "title": "04 · 左侧全身",
+      "properties": {
+        "Node name for S&R": "AstroGateImage"
+      },
+      "widgets_values": [
+        "参考图 1 是角色基准；参考图 2 是背面辅助图，只用于理解服装背部和包带结构，不得覆盖图 1 基准。只生成一张该人物的严格左侧全身单视图，角色自身左侧朝向镜头，头部和身体保持一致侧向，从头顶到靴底完整呈现。清楚展示左耳银色月牙耳坠和左髋棕色包体，保留同一脸部轮廓、发型、服装版型与材质。浅灰色干净背景，柔和均匀光线。不要画成右侧，不要镜像，也不要拼接多视图。",
+        "gpt-image-2",
+        "3:4",
+        "1K",
+        "medium",
+        "",
+        "左侧",
+        0
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        1920,
+        850
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 16
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "04 · 左侧全身 · 保存与预览",
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "AstroGate/character/left"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "AstroGateImage",
+      "pos": [
+        2380,
+        150
+      ],
+      "size": [
+        400,
+        620
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reference_images.reference_1",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 11
+        },
+        {
+          "name": "reference_images.reference_2",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 12
+        },
+        {
+          "name": "reference_images.reference_3",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "model",
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": null
+        },
+        {
+          "name": "resolution",
+          "type": "COMBO",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": null
+        },
+        {
+          "name": "quality",
+          "type": "COMBO",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "name": "consistency",
+          "type": "STRING",
+          "widget": {
+            "name": "consistency"
+          },
+          "link": 5
+        },
+        {
+          "name": "view",
+          "type": "COMBO",
+          "widget": {
+            "name": "view"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "title": "05 · 配饰细节",
+      "properties": {
+        "Node name for S&R": "AstroGateImage"
+      },
+      "widgets_values": [
+        "参考图 1 是角色基准；参考图 2 是正面辅助图，只用于看清原有配饰，不得覆盖图 1 基准。生成一张清晰的配饰细节展示图，在同一张画面中有序呈现角色左耳的银色月牙耳坠、芥末黄围巾的织物纹理、棕色斜挎包及肩带连接处、黑色靴子的材质与结构。颜色、款式、比例和磨损细节均沿用基准图，不设计新配饰。浅灰色背景、柔和均匀光线、写实材质，不含文字、标注、编号或水印。",
+        "gpt-image-2",
+        "4:3",
+        "1K",
+        "medium",
+        "",
+        "配饰细节",
+        0
+      ]
+    },
+    {
+      "id": 11,
+      "type": "SaveImage",
+      "pos": [
+        2380,
+        850
+      ],
+      "size": [
+        400,
+        420
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 17
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "05 · 配饰细节 · 保存与预览",
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "AstroGate/character/details"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      6,
+      "STRING"
+    ],
+    [
+      2,
+      1,
+      0,
+      4,
+      7,
+      "STRING"
+    ],
+    [
+      3,
+      1,
+      0,
+      6,
+      8,
+      "STRING"
+    ],
+    [
+      4,
+      1,
+      0,
+      8,
+      8,
+      "STRING"
+    ],
+    [
+      5,
+      1,
+      0,
+      10,
+      8,
+      "STRING"
+    ],
+    [
+      6,
+      2,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      2,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      8,
+      4,
+      0,
+      6,
+      1,
+      "IMAGE"
+    ],
+    [
+      9,
+      2,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      6,
+      0,
+      8,
+      1,
+      "IMAGE"
+    ],
+    [
+      11,
+      2,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      4,
+      0,
+      10,
+      1,
+      "IMAGE"
+    ],
+    [
+      13,
+      2,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      14,
+      4,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      15,
+      6,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      16,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      17,
+      10,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "01 · 场景人物基准",
+      "bounding": [
+        530,
+        90,
+        420,
+        1200
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "02 · 正面全身",
+      "bounding": [
+        990,
+        90,
+        420,
+        1200
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "03 · 背面全身",
+      "bounding": [
+        1450,
+        90,
+        420,
+        1200
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "04 · 左侧全身",
+      "bounding": [
+        1910,
+        90,
+        420,
+        1200
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "05 · 配饰细节",
+      "bounding": [
+        2370,
+        90,
+        420,
+        1200
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.45,
+      "offset": [
+        20,
+        20
+      ]
+    }
+  },
+  "version": 0.4
+}
