@@ -251,13 +251,18 @@ def native_canvas(store, project, chapter_id, analysis_id=None):
             image = owner.get("video_reference") if owner else None
             if not image:
                 continue
+            reference_label = "原片参考"
+            if kind == "character" and owner.get("video_reference_status") == "suggested":
+                reference_label = "人物候选帧 · 请核对身份"
+                if owner.get("video_reference_time") is not None:
+                    reference_label += f" · {owner['video_reference_time']:.1f}s"
             source_key = item["id"] + "::video_source"
-            nodes.append({"id": source_key, "type": "LoadImage", "title": "原片参考 · " + item["title"],
+            nodes.append({"id": source_key, "type": "LoadImage", "title": reference_label + " · " + item["title"],
                           "pos": [item["pos"][0] - 230, item["pos"][1] + 350], "color": "#504d43",
                           "properties": {"astrogate_project": project["id"], "astrogate_key": source_key, "astrogate_kind": "video_source"},
                           "widgets": {"image": image["file"]}})
             slot = 1 + sum(link["to"] == item["id"] and link["type"] == "IMAGE" for link in links)
-            links.append({"from": source_key, "slot": 0, "to": item["id"], "input": f"reference_images.reference_{slot}", "type": "IMAGE", "label": "原片参考"})
+            links.append({"from": source_key, "slot": 0, "to": item["id"], "input": f"reference_images.reference_{slot}", "type": "IMAGE", "label": reference_label})
     return {"project_id": project["id"], "chapter_id": chapter_id, "layout_version": 5, "reference_wiring_version": 4,
             "character_aliases": character_aliases, "nodes": nodes, "links": links}
 

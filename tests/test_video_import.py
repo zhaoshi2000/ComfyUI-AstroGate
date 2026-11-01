@@ -1,8 +1,10 @@
 import json
 import sys
+import copy
 
+import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, ImageFilter
 from io import BytesIO
 
 from test_storyboard import modules, project
@@ -17,6 +19,13 @@ def test_video_subtitle_correction_keeps_ids_and_raw_text(modules):
     assert names == ["周野"]
     with pytest.raises(ValueError, match="原始识别结果已保留"):
         video.validate_correction(lines, {"lines": [{"id": "other", "text": "伪造"}], "protagonists": []})
+
+
+def test_portrait_metrics_prefers_sharp_frame(modules):
+    video = sys.modules[modules.node.__name__ + ".storyboard.video_import"]
+    sharp = Image.fromarray(np.random.default_rng(3).integers(0, 256, (180, 320, 3), dtype=np.uint8), "RGB")
+    blurred = sharp.filter(ImageFilter.GaussianBlur(4))
+    assert video.portrait_metrics(sharp)["portrait_score"] > video.portrait_metrics(blurred)["portrait_score"]
 
 
 @pytest.mark.asyncio
@@ -96,3 +105,29 @@ def test_video_reference_nodes_join_existing_story_graph(modules, project):
     assert all(node["widgets"]["image"] == frame["file"] for node in sources)
     assert any(link["from"] == project["shots"][0]["id"] + "::video_source" and link["type"] == "IMAGE" for link in recipe["links"])
     assert next(node for node in recipe["nodes"] if node["id"] == project["assets"][0]["id"])["properties"]["astrogate_is_protagonist"]
+
+
+def test_character_reference_uses_clearest_solo_shot_frame(modules, project):
+    video = sys.modules[modules.node.__name__ + ".storyboard.video_import"]
+    original = project["shots"][0]
+    original["analysis_id"] = "analysis1"
+    original["participants"] = [original["participants"][0]]
+    original["source_refs"] = [{"paragraph_id": "line1", "quote": None}]
+    second = copy.deepcopy(original)
+    second["id"] = "shot2"
+    second["source_refs"] = [{"paragraph_id": "line2", "quote": None}]
+    third = copy.deepcopy(original)
+    third["id"] = "shot3"
+    third["participants"] = [{"visible": True, "identity": modules.domain.binding(project, "周野")},
+                             {"visible": True, "identity": modules.domain.binding(project, "林夏")}]
+    third["source_refs"] = [{"paragraph_id": "line3", "quote": None}]
+    project["shots"] = [original, second, third]
+    project["video_import"] = {"frames": [
+        {"time": 0, "image": {"file": "astrogate/test/soft.png"}, "line_id": "line1", "portrait_score": 10},
+        {"time": 1, "image": {"file": "astrogate/test/clear.png"}, "line_id": "line2", "portrait_score": 80},
+        {"time": 2, "image": {"file": "astrogate/test/group.png"}, "line_id": "line3", "portrait_score": 90}]}
+    video.attach_frames(project, "analysis1")
+    assert project["assets"][0]["video_reference"]["file"].endswith("clear.png")
+    assert project["assets"][0]["video_reference_time"] == 1
+    assert project["assets"][0]["video_reference_status"] == "suggested"
+    assert "video_reference" not in project["assets"][2]

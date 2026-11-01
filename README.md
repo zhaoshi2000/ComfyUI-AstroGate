@@ -31,7 +31,7 @@
 
 在 ComfyUI 的 Python 环境安装 `custom_nodes/astrogate/requirements-asr.txt`；Windows CUDA 环境还需安装 `requirements-asr-cuda.txt`。把本地 `Systran/faster-whisper-small` 模型文件放到 `models/astrogate_asr/small/`，至少包含 `model.bin`、`config.json` 和 `tokenizer.json`。连接原生 **加载视频** 的 `VIDEO` 输出到 **分析剧情 · 视频字幕与分镜**，点击 **分析视频并建立剧情图**。默认从音轨做 CUDA 语音转文字，保存逐句起止时间，再调用现有文本 AI 校对一次，建立人物设定卡、场景母图和上下排列的分镜节点。原片帧通过 `LoadImage` 参考节点连到相应卡片。
 
-无音轨、只有画面文字的漫剧可把 **字幕来源** 改为 **画面字幕（OCR）**。此模式另需安装 `requirements-ocr.txt`，并把 EasyOCR 的 `craft_mlt_25k.pth`、`zh_sim_g2.pth` 放到 `models/astrogate_ocr/`。原始识别文字、AI 校对结果、时间点和原片帧与项目一同保存、导出。语音或字幕只能辅助识别人物，不能保证把名字与画面中的脸准确对应；生成前可检查参考线。文本接口返回限流错误时，已保存的识别结果会保留，需手动再次点击分析继续。
+无音轨、只有画面文字的漫剧可把 **字幕来源** 改为 **画面字幕（OCR）**。此模式另需安装 `requirements-ocr.txt`，并把 EasyOCR 的 `craft_mlt_25k.pth`、`zh_sim_g2.pth` 放到 `models/astrogate_ocr/`。原始识别文字、AI 校对结果、时间点和原片帧与项目一同保存、导出。人物分析使用校对后的对白或字幕；人物设定卡优先连接对应单人镜头中最清晰的原片帧，候选帧在画布上标记“请核对身份”。声音与字幕不能独立证明画面人物身份，多人镜头不会自动指定人物参考。文本接口返回限流错误时，已保存的识别结果会保留，需手动再次点击分析继续。
 
 ## TXT 小说分镜（原生节点画布）
 

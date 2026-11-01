@@ -711,7 +711,7 @@ class AstroGateVideoAnalysis(io.ComfyNode):
                                  io.Combo.Input("subtitle_region", display_name="字幕区域", options=["画面下方", "全画面"], default="画面下方"),
                                  io.Combo.Input("subtitle_source", display_name="文字来源", options=["语音转文字（CUDA）", "画面字幕（OCR）"], default="语音转文字（CUDA）", optional=True),
                                  io.String.Input("style", display_name="画风设定", default="写实电影，自然摄影质感，人物与场景和原片一致", multiline=True),
-                                 io.String.Input("density", display_name="拆镜要求", default="依据原片字幕和抽帧还原剧情，保留关键镜头、反应、特写与转场", multiline=True),
+                                 io.String.Input("density", display_name="拆镜要求", default="依据原片对白、字幕和抽帧还原剧情，保留关键镜头、反应、特写与转场", multiline=True),
                                  io.Int.Input("analysis_revision", display_name="重分析编号", default=0, min=0),
                                  io.String.Input("frame_aspect_ratio", display_name="分镜画幅", default="16:9")],
                          outputs=[io.Custom("ASTROGATE_BOARD").Output(display_name="剧情图"), io.String.Output(display_name="字幕 JSON")],
