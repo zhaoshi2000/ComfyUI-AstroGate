@@ -43,7 +43,7 @@ git clone https://github.com/zhaoshi2000/ComfyUI-AstroGate.git custom_nodes/astr
 
 ## 视频剧情分析（CUDA 字幕 OCR）
 
-先安装 `requirements-ocr.txt`，并把 EasyOCR 的 `craft_mlt_25k.pth`、`zh_sim_g2.pth` 放到 ComfyUI 的 `models/astrogate_ocr/`；运行时只读取本地模型。连接原生 **加载视频** 的 `VIDEO` 输出到 **分析剧情 · 视频字幕与分镜**，点击节点里的 **分析视频并建立剧情图**。节点抽帧，在 CUDA 上识别画面字幕，调用现有文本 AI 校对一次，再建立人物设定卡、场景母图和分镜节点。原片帧通过 `LoadImage` 参考节点连接；优先生成识别出的主角、场景和分镜图片。
+先在 ComfyUI 环境安装 `requirements-ocr.txt`，并将 EasyOCR 的 `craft_mlt_25k.pth`、`zh_sim_g2.pth` 放到 `models/astrogate_ocr/`。可以在 ComfyUI 根目录手动执行 `python -c "import easyocr; easyocr.Reader(['ch_sim','en'], gpu=True, model_storage_directory='models/astrogate_ocr')"` 下载一次；运行时只读取本地模型。连接原生 **加载视频** 的 `VIDEO` 输出到 **分析剧情 · 视频字幕与分镜**，点击节点里的 **分析视频并建立剧情图**。节点抽帧，在 CUDA 上识别画面字幕，调用现有文本 AI 校对一次，再建立人物设定卡、场景母图和分镜节点。原片帧通过 `LoadImage` 参考节点连接；优先生成识别出的主角、场景和分镜图片。
 
 原始 OCR、校对字幕、时间点和原片帧随项目保存、导出。本节点识别画面文字，不做语音转写。字幕不能保证准确对应画面中的脸；生成前可在画布检查参考线。
 

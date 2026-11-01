@@ -1465,7 +1465,9 @@ async function poll() {
     let activityError = "";
     const frames = nodes().filter(n => n.type === "AstroGateStoryboardFrame");
     const boards = nodes().filter(n => n.type === "AstroGateStoryboard");
-    const projects = new Set([...frames.map(n => n.properties.astrogate_project), ...boards.map(n => value(sourceNode(n, "script") || {}, "project_id"))].filter(Boolean));
+    const videoBoards = nodes().filter(n => n.type === "AstroGateVideoAnalysis");
+    const projects = new Set([...frames.map(n => n.properties.astrogate_project), ...boards.map(n => value(sourceNode(n, "script") || {}, "project_id")),
+        ...videoBoards.map(n => value(n, "project_id"))].filter(Boolean));
     for (const project of projects) {
         try {
             const result = await request(`/projects/${project}?summary=1`);
@@ -1525,7 +1527,18 @@ async function poll() {
             }
             if (restoredImages) {
                 app.graph.change?.();
-                for (const board of boards.filter(n => n.properties.astrogate_board?.project_id === project)) await saveBoard(board);
+                for (const board of [...boards, ...videoBoards].filter(n => n.properties.astrogate_board?.project_id === project)) await saveBoard(board);
+            }
+            for (const node of videoBoards.filter(n => value(n, "project_id") === project)) {
+                const job = result.jobs.find(j => j.kind === "text");
+                if (job) activityEntries.push({node, job});
+                if (job && active.has(job.status)) message(node, `正在分析人物、场景与分镜 · ${job.completed_chunks || 0}/${job.total_chunks || "?"} 块`, true);
+                else if (job && ["failed", "unknown"].includes(job.status)) message(node, job.error || "视频分镜分析未完成；点击重新分析。", false, true);
+                else if (job?.status === "succeeded" && !node.properties.astrogate_board) {
+                    const {project: saved} = await request(`/projects/${project}`);
+                    if (saved.video_import?.status === "completed") await buildBoard(node, saved.video_import.board);
+                }
+                batchProgress(node, jobs);
             }
             for (const node of boards.filter(n => value(sourceNode(n, "script") || {}, "project_id") === project)) {
                 const context = await analysisContext(node);
@@ -1571,7 +1584,8 @@ async function poll() {
             }
         } catch (error) {
             activityError = `状态读取失败：${error.message}`;
-            for (const node of [...frames.filter(n => n.properties.astrogate_project === project), ...boards.filter(n => value(sourceNode(n, "script") || {}, "project_id") === project)]) message(node, `状态读取失败：${error.message}`, false, true);
+            for (const node of [...frames.filter(n => n.properties.astrogate_project === project), ...boards.filter(n => value(sourceNode(n, "script") || {}, "project_id") === project),
+                ...videoBoards.filter(n => value(n, "project_id") === project)]) message(node, `状态读取失败：${error.message}`, false, true);
         }
     }
     activityPanel?.update(activityEntries, activityError);
