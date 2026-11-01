@@ -1,18 +1,4 @@
-# AstroGate for ComfyUI
-
-AstroGate 的 ComfyUI 自定义节点，支持 TXT 分镜分析、人物与场景设定、图片生成、台词关联，以及图生视频工作流。图片服务源码在 [AstroGateIMG](https://github.com/zhaoshi2000/AstroGateIMG)。项目采用 GPL-3.0 许可证。
-
-## 安装
-
-在 ComfyUI 根目录执行：
-
-```powershell
-git clone https://github.com/zhaoshi2000/ComfyUI-AstroGate.git custom_nodes/astrogate
-```
-
-按下文设置服务端接口环境变量，重启 ComfyUI 并刷新浏览器。仓库不包含接口密钥、模型权重和已生成图片。`examples/storyboard-full-episode-1.json` 是公开的第 1 集分镜工作流；如需在另一台机器继续使用原图，还需单独迁移对应的项目数据库和图片文件。
-
-## AI 生成图像
+# AstroGate AI 生成图像
 
 右键画布 → 添加节点 → 图像 → **AstroGate AI 生成图像**，或双击画布搜索 `AstroGate`。
 
@@ -41,11 +27,11 @@ git clone https://github.com/zhaoshi2000/ComfyUI-AstroGate.git custom_nodes/astr
 
 桥接扩展只操作当前已登录网页的上传、提示词和生成控件；网页自行生成临时签名。不会读取、保存或要求粘贴 Cookie，也不会把 Cookie、请求头、临时签名或结果下载链接写进工作流、日志或 Git。每个浏览器页面一次只处理一个视频任务；断开、取消或超时会标为结果未知，系统不会自动再次提交。视频成功后保存在 `output/AstroGate/Jimeng/`。即梦网页改版后，扩展的页面控件定位可能需要更新。
 
-## 视频剧情分析（CUDA 字幕 OCR）
+## 视频剧情分析（CUDA 语音转文字）
 
-先在 ComfyUI 环境安装 `requirements-ocr.txt`，并将 EasyOCR 的 `craft_mlt_25k.pth`、`zh_sim_g2.pth` 放到 `models/astrogate_ocr/`。可以在 ComfyUI 根目录手动执行 `python -c "import easyocr; easyocr.Reader(['ch_sim','en'], gpu=True, model_storage_directory='models/astrogate_ocr')"` 下载一次；运行时只读取本地模型。连接原生 **加载视频** 的 `VIDEO` 输出到 **分析剧情 · 视频字幕与分镜**，点击节点里的 **分析视频并建立剧情图**。节点抽帧，在 CUDA 上识别画面字幕，调用现有文本 AI 校对一次，再建立人物设定卡、场景母图和分镜节点。原片帧通过 `LoadImage` 参考节点连接；优先生成识别出的主角、场景和分镜图片。
+在 ComfyUI 的 Python 环境安装 `custom_nodes/astrogate/requirements-asr.txt`；Windows CUDA 环境还需安装 `requirements-asr-cuda.txt`。把本地 `Systran/faster-whisper-small` 模型文件放到 `models/astrogate_asr/small/`，至少包含 `model.bin`、`config.json` 和 `tokenizer.json`。连接原生 **加载视频** 的 `VIDEO` 输出到 **分析剧情 · 视频字幕与分镜**，点击 **分析视频并建立剧情图**。默认从音轨做 CUDA 语音转文字，保存逐句起止时间，再调用现有文本 AI 校对一次，建立人物设定卡、场景母图和上下排列的分镜节点。原片帧通过 `LoadImage` 参考节点连到相应卡片。
 
-原始 OCR、校对字幕、时间点和原片帧随项目保存、导出。本节点识别画面文字，不做语音转写。字幕不能保证准确对应画面中的脸；生成前可在画布检查参考线。
+无音轨、只有画面文字的漫剧可把 **字幕来源** 改为 **画面字幕（OCR）**。此模式另需安装 `requirements-ocr.txt`，并把 EasyOCR 的 `craft_mlt_25k.pth`、`zh_sim_g2.pth` 放到 `models/astrogate_ocr/`。原始识别文字、AI 校对结果、时间点和原片帧与项目一同保存、导出。语音或字幕只能辅助识别人物，不能保证把名字与画面中的脸准确对应；生成前可检查参考线。文本接口返回限流错误时，已保存的识别结果会保留，需手动再次点击分析继续。
 
 ## TXT 小说分镜（原生节点画布）
 

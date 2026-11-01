@@ -927,13 +927,15 @@ function installVideoAnalysis(node) {
     const analyze = async () => {
         const source = sourceNode(node, "video");
         const file = value(source || {}, "file");
+        const mode = value(node, "subtitle_source") || "语音转文字（CUDA）";
         if (!file) throw new Error("请连接原生‘加载视频’节点并选择本机视频。 ");
-        if (node.properties.astrogate_video_file !== file || !value(node, "project_id")) {
+        if (node.properties.astrogate_video_file !== file || node.properties.astrogate_source_mode !== mode || !value(node, "project_id")) {
             const created = await request("/projects/video", {file});
             setValue(node, "project_id", created.id);
             node.properties.astrogate_video_file = file;
+            node.properties.astrogate_source_mode = mode;
         }
-        message(node, "正在排队提取视频字幕和画面…", true);
+        message(node, `正在排队${mode === "语音转文字（CUDA）" ? "转写对白" : "识别画面字幕"}并抽帧…`, true);
         await queueNodes([node]);
     };
     const controls = element("div", undefined, "ag-native-actions");

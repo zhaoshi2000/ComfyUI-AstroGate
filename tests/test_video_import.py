@@ -15,7 +15,7 @@ def test_video_subtitle_correction_keeps_ids_and_raw_text(modules):
     assert lines[0]["raw"] == "你先去"
     assert lines[0]["text"] == "你先走"
     assert names == ["周野"]
-    with pytest.raises(ValueError, match="原始 OCR 已保留"):
+    with pytest.raises(ValueError, match="原始识别结果已保留"):
         video.validate_correction(lines, {"lines": [{"id": "other", "text": "伪造"}], "protagonists": []})
 
 
@@ -43,14 +43,43 @@ async def test_video_analysis_reuses_ocr_and_links_existing_board(modules, monke
     monkeypatch.setattr(video, "extract_video", extract)
     monkeypatch.setattr(video, "text_request", correct)
     monkeypatch.setattr(video, "analyse_native", build)
-    first = await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0)
-    second = await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0)
+    first = await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0, source_mode="画面字幕（OCR）")
+    second = await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0, source_mode="画面字幕（OCR）")
     saved = modules.store.get(project["id"])
     assert first == second
     assert calls == ["ocr", "correct", "board"]
     assert saved["source"]["text"] == "[1.500s] 你先走"
     assert saved["video_import"]["ocr_lines"][0]["raw"] == "你先去"
     assert saved["video_import"]["protagonists"] == ["周野"]
+
+
+@pytest.mark.asyncio
+async def test_video_analysis_defaults_to_speech_and_reuses_transcript(modules, monkeypatch):
+    video = sys.modules[modules.node.__name__ + ".storyboard.video_import"]
+    project = video.video_project("短剧")
+    modules.store.create("owner", project)
+    calls = []
+
+    def extract(*args):
+        calls.append("speech")
+        return ([{"id": "line1", "time": 1.5, "end": 2.5, "raw": "你先走", "text": "你先走", "source": "asr", "uncertain": False}],
+                [{"time": 1.5, "image": {"file": "astrogate/x/frame.png"}, "line_id": "line1"}])
+
+    async def correct(*args):
+        calls.append("correct")
+        return json.dumps({"lines": [{"id": "line1", "text": "你先走", "uncertain": False}], "protagonists": ["周野"]}), {}
+
+    async def build(store, project_id, chapter, model, style, density, revision, chunk_limit):
+        calls.append("board")
+        return {"project_id": project_id, "chapter_id": store.get(project_id)["chapters"][0]["id"], "analysis_id": "analysis1"}
+
+    monkeypatch.setattr(video, "extract_speech", extract)
+    monkeypatch.setattr(video, "text_request", correct)
+    monkeypatch.setattr(video, "analyse_native", build)
+    await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0)
+    await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0)
+    assert calls == ["speech", "correct", "board"]
+    assert modules.store.get(project["id"])["video_import"]["transcript_lines"][0]["end"] == 2.5
 
 
 def test_video_reference_nodes_join_existing_story_graph(modules, project):

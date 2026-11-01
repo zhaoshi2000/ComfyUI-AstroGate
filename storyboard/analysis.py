@@ -104,6 +104,8 @@ async def text_request(model, system, content, on_progress=None):
                 if on_progress:
                     on_progress(f"接口响应 HTTP {response.status}", request_state="waiting", response_status=response.status, last_activity_at=time.time())
                 if response.status != 200:
+                    if response.status == 429:
+                        raise RuntimeError("文本接口 HTTP 429（请求被限流）。已保存的进度会保留；稍后手动重试或切换文本模型。")
                     raise RuntimeError(f"文本接口 HTTP {response.status}，未自动重试或切换模型。")
                 if response.content_type == "text/event-stream":
                     return await read_text_stream(response, on_progress)

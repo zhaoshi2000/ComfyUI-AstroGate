@@ -702,13 +702,14 @@ class AstroGateVideoAnalysis(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(node_id="AstroGateVideoAnalysis", display_name="分析剧情 · 视频字幕与分镜", category="video/AstroGate",
-                         description="连接原生加载视频节点。CUDA 识别画面字幕，AI 校对一次，并创建人物、场景和分镜画布。",
+                         description="连接原生加载视频节点。默认在 CUDA 上把对白转成文字，也可选画面 OCR；AI 校对一次后建立人物、场景和分镜画布。",
                          is_output_node=True, not_idempotent=True,
                          inputs=[io.Video.Input("video", display_name="视频"),
                                  io.String.Input("project_id", default="", socketless=True),
                                  io.Combo.Input("text_model", display_name="文本模型", options=["gpt-6-luna", "gpt-5.6-terra"], default="gpt-6-luna"),
                                  io.Float.Input("sample_interval", display_name="采样间隔（秒）", default=1.0, min=0.2, max=10.0, step=0.1),
                                  io.Combo.Input("subtitle_region", display_name="字幕区域", options=["画面下方", "全画面"], default="画面下方"),
+                                 io.Combo.Input("subtitle_source", display_name="文字来源", options=["语音转文字（CUDA）", "画面字幕（OCR）"], default="语音转文字（CUDA）", optional=True),
                                  io.String.Input("style", display_name="画风设定", default="写实电影，自然摄影质感，人物与场景和原片一致", multiline=True),
                                  io.String.Input("density", display_name="拆镜要求", default="依据原片字幕和抽帧还原剧情，保留关键镜头、反应、特写与转场", multiline=True),
                                  io.Int.Input("analysis_revision", display_name="重分析编号", default=0, min=0),
@@ -717,17 +718,19 @@ class AstroGateVideoAnalysis(io.ComfyNode):
                          hidden=[io.Hidden.unique_id])
 
     @classmethod
-    async def execute(cls, video, project_id, text_model, sample_interval, subtitle_region, style, density, analysis_revision, frame_aspect_ratio):
+    async def execute(cls, video, project_id, text_model, sample_interval, subtitle_region, style, density, analysis_revision, frame_aspect_ratio, subtitle_source="语音转文字（CUDA）"):
         if not project_id:
             raise ValueError("请先点击分析节点里的‘分析视频’，创建项目并提交任务。")
         store = get_store()
         store.change(project_id, lambda p: p["settings"].update(aspect_ratio=normalize_aspect_ratio(frame_aspect_ratio), style=style, density=density, text_model=text_model))
         if cls.hidden.unique_id:
-            PromptServer.instance.send_progress_text("正在抽帧、CUDA 识别字幕并建立剧情图…", cls.hidden.unique_id)
+            PromptServer.instance.send_progress_text("正在提取音轨和原片帧，建立剧情图…", cls.hidden.unique_id)
         progress = (lambda message: PromptServer.instance.send_progress_text(message, cls.hidden.unique_id)) if cls.hidden.unique_id else None
-        board = await analyse_video(store, project_id, video, text_model, sample_interval, subtitle_region, style, density, analysis_revision, on_progress=progress)
-        lines = store.get(project_id)["video_import"]["ocr_lines"]
-        return io.NodeOutput(board, json.dumps(lines, ensure_ascii=False, indent=2), ui={"astrogate_board": [board], "astrogate_summary": [f"已提取 {len(lines)} 条字幕"]})
+        board = await analyse_video(store, project_id, video, text_model, sample_interval, subtitle_region, style, density, analysis_revision,
+                                    on_progress=progress, source_mode=subtitle_source)
+        imported = store.get(project_id)["video_import"]
+        lines = imported.get("transcript_lines") or imported.get("ocr_lines", [])
+        return io.NodeOutput(board, json.dumps(lines, ensure_ascii=False, indent=2), ui={"astrogate_board": [board], "astrogate_summary": [f"已提取 {len(lines)} 条对白/字幕"]})
 
 
 class AstroGateExtension(ComfyExtension):
