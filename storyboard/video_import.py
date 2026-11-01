@@ -134,7 +134,8 @@ def extract_speech(video, interval, store, project_id, on_progress=None):
         dll_dirs = [packages / name / "bin" for name in ("cublas", "cudnn", "cuda_runtime", "cuda_nvrtc")]
         if not all(path.is_dir() for path in dll_dirs):
             raise RuntimeError("缺少 CUDA 12 语音运行库。请安装 requirements-asr-cuda.txt 后重启。")
-        os.environ["PATH"] = os.pathsep.join(map(str, dll_dirs)) + os.pathsep + os.environ["PATH"]
+        current_path = os.environ.get("PATH", "").split(os.pathsep)
+        os.environ["PATH"] = os.pathsep.join([str(path) for path in dll_dirs if str(path) not in current_path] + current_path)
         dll_handles = [os.add_dll_directory(str(path)) for path in dll_dirs]
     if on_progress:
         on_progress("CUDA 正在转写对白")
