@@ -1,0 +1,69 @@
+import json
+import sys
+
+import pytest
+from PIL import Image
+from io import BytesIO
+
+from test_storyboard import modules, project
+
+
+def test_video_subtitle_correction_keeps_ids_and_raw_text(modules):
+    video = sys.modules[modules.node.__name__ + ".storyboard.video_import"]
+    lines = [{"id": "a", "time": 1.0, "raw": "你先去", "text": "你先去", "uncertain": False}]
+    names = video.validate_correction(lines, {"lines": [{"id": "a", "text": "你先走", "uncertain": False}], "protagonists": ["周野", "周野"]})
+    assert lines[0]["raw"] == "你先去"
+    assert lines[0]["text"] == "你先走"
+    assert names == ["周野"]
+    with pytest.raises(ValueError, match="原始 OCR 已保留"):
+        video.validate_correction(lines, {"lines": [{"id": "other", "text": "伪造"}], "protagonists": []})
+
+
+@pytest.mark.asyncio
+async def test_video_analysis_reuses_ocr_and_links_existing_board(modules, monkeypatch):
+    video = sys.modules[modules.node.__name__ + ".storyboard.video_import"]
+    project = video.video_project("短剧")
+    modules.store.create("owner", project)
+    calls = []
+
+    def extract(*args):
+        calls.append("ocr")
+        return ([{"id": "line1", "time": 1.5, "raw": "你先去", "text": "你先去", "uncertain": False}],
+                [{"time": 1.5, "image": {"file": "astrogate/x/frame.png"}, "line_id": "line1"}])
+
+    async def correct(*args):
+        calls.append("correct")
+        return json.dumps({"lines": [{"id": "line1", "text": "你先走", "uncertain": False}], "protagonists": ["周野"]}), {}
+
+    async def build(store, project_id, chapter, model, style, density, revision, chunk_limit):
+        calls.append("board")
+        assert chunk_limit == 3000
+        return {"project_id": project_id, "chapter_id": store.get(project_id)["chapters"][0]["id"], "analysis_id": "analysis1"}
+
+    monkeypatch.setattr(video, "extract_video", extract)
+    monkeypatch.setattr(video, "text_request", correct)
+    monkeypatch.setattr(video, "analyse_native", build)
+    first = await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0)
+    second = await video.analyse_video(modules.store, project["id"], object(), "gpt-6-luna", 1.0, "画面下方", "写实", "精细", 0)
+    saved = modules.store.get(project["id"])
+    assert first == second
+    assert calls == ["ocr", "correct", "board"]
+    assert saved["source"]["text"] == "[1.500s] 你先走"
+    assert saved["video_import"]["ocr_lines"][0]["raw"] == "你先去"
+    assert saved["video_import"]["protagonists"] == ["周野"]
+
+
+def test_video_reference_nodes_join_existing_story_graph(modules, project):
+    native = sys.modules[modules.node.__name__ + ".storyboard.native"]
+    raw = BytesIO()
+    Image.new("RGB", (32, 32), "blue").save(raw, "PNG")
+    frame = modules.store.save_image(project["id"], raw.getvalue())
+    project["video_import"] = {"status": "completed", "protagonists": ["林夏"], "frames": [{"time": 1, "image": frame}]}
+    project["assets"][0]["video_reference"] = frame
+    project["shots"][0]["video_reference"] = frame
+    recipe = native.native_canvas(modules.store, project, project["chapters"][0]["id"])
+    sources = [node for node in recipe["nodes"] if node["type"] == "LoadImage"]
+    assert len(sources) == 2
+    assert all(node["widgets"]["image"] == frame["file"] for node in sources)
+    assert any(link["from"] == project["shots"][0]["id"] + "::video_source" and link["type"] == "IMAGE" for link in recipe["links"])
+    assert next(node for node in recipe["nodes"] if node["id"] == project["assets"][0]["id"])["properties"]["astrogate_is_protagonist"]

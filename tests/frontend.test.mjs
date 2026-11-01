@@ -21,7 +21,7 @@ function graphMock() {
         remove(node) { this._nodes = this._nodes.filter(n => n !== node); for (const [key, link] of Object.entries(this.links)) if (link.origin_id === node.id || link.target_id === node.id) delete this.links[key]; },
         setDirtyCanvas() {}, getNodeById(id) { return this._nodes.find(n => n.id == id); }};
     const LiteGraph = {createNode(type) {
-        return {type, properties: {}, widgets: ["prompt", "job_id", "element_id", "aspect_ratio", "resolution", "quality"].map(name => ({name, value: ""})), inputs: [],
+        return {type, properties: {}, widgets: ["prompt", "job_id", "element_id", "aspect_ratio", "resolution", "quality", "image"].map(name => ({name, value: ""})), inputs: [],
             findInputSlot(name) { return this.inputs.findIndex(i => i.name === name); },
             serialize() { return {id: this.id, type: this.type, properties: structuredClone(this.properties), widgets_values: this.widgets.map(w => w.value)}; },
             addInput(name, type) { this.inputs.push({name, type}); }, setDirtyCanvas() {},
@@ -67,6 +67,24 @@ test("vertical shot layout migration keeps completed images and edited prompts",
     assert.deepEqual(Array.from(mapping.get("s2").pos), [500, 800]);
     assert.equal(first.widgets.find(w => w.name === "prompt").value, "人工修改");
     assert.equal(first.properties.astrogate_images[0].filename, "s1.png");
+});
+test("imported video frames connect as image references in the existing board", async () => {
+    const {graph, LiteGraph} = graphMock(); graph.change = () => {};
+    const board = LiteGraph.createNode("AstroGateVideoAnalysis"); board.pos = [0, 0]; graph.add(board);
+    const app = {registerExtension() {}, graph, nodeOutputs: {}};
+    const {mountGraph} = await load(app, {LiteGraph});
+    const recipe = {project_id: "p", chapter_id: "c", layout_version: 5, reference_wiring_version: 4,
+        nodes: [{id: "shot", type: "AstroGateStoryboardFrame", title: "近景", pos: [500, 80],
+            widgets: {prompt: "近景", job_id: "", aspect_ratio: "16:9", resolution: "4K", quality: "high"},
+            properties: {astrogate_project: "p", astrogate_owner: "shot", astrogate_key: "shot", astrogate_kind: "shot", astrogate_base_prompt: "近景"}},
+            {id: "shot::video_source", type: "LoadImage", title: "原片", pos: [250, 80], widgets: {image: "astrogate/p/frame.png"},
+                properties: {astrogate_project: "p", astrogate_key: "shot::video_source", astrogate_kind: "video_source"}}],
+        links: [{from: "$board", slot: 0, to: "shot", input: "board", type: "ASTROGATE_BOARD"},
+            {from: "shot::video_source", slot: 0, to: "shot", input: "reference_images.reference_1", type: "IMAGE"}]};
+    const mapping = mountGraph(board, recipe);
+    assert.equal(mapping.get("shot::video_source").type, "LoadImage");
+    assert.equal(mapping.get("shot").inputs.find(i => i.name === "reference_images.reference_1").link != null, true);
+    assert.equal(mapping.get("shot::video_source").widgets.find(w => w.name === "image").value, "astrogate/p/frame.png");
 });
 test("legacy folding preserves values, references and output previews", async () => {
     const app = {registerExtension() {}, nodeOutputs: {}};

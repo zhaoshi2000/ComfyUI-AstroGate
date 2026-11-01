@@ -11,12 +11,14 @@ PREVIOUS_SCENE_MASTER_PROMPT = "无人环境素材：生成一张16:9连续的�
 SCENE_ONLY_PROMPT = "无人环境素材：只绘制建筑、空间、陈设与光照，不出现任何人物、路人、剪影或人物倒影。"
 
 
-async def analyse_native(store, project_id, chapter_number, model, style, density, revision):
+async def analyse_native(store, project_id, chapter_number, model, style, density, revision, chunk_limit=700):
     project = store.get(project_id)
     if not 1 <= chapter_number <= len(project["chapters"]):
         raise ValueError(f"本剧本共 {len(project['chapters'])} 章，请修改章节序号。")
     chapter = project["chapters"][chapter_number - 1]
     fields = [project["source"]["hash"], chapter["id"], model, style, density, revision]
+    if chunk_limit != 700:
+        fields.append(chunk_limit)
     include_props = project["settings"].get("include_props", False)
     key = digest(fields + ([True] if include_props else []))
     job = next((j for j in store.jobs(project_id) if j.get("analysis_key") == key), None)
@@ -28,7 +30,7 @@ async def analyse_native(store, project_id, chapter_number, model, style, densit
             p["settings"].update(text_model=model, style=style, density=density)
         store.change(project_id, settings)
         job = store.add_job(project_id, {"kind": "text", "chapter_id": chapter["id"], "model": model,
-                                        "style": style, "density": density, "analysis_key": key, "include_props": include_props, "chunk_limit": 700, "sentence_chunks": True})
+                                        "style": style, "density": density, "analysis_key": key, "include_props": include_props, "chunk_limit": chunk_limit, "sentence_chunks": True})
         await analyse(store, job["id"])
         job = store.job(job["id"])
     if job["status"] != "succeeded":
@@ -224,6 +226,38 @@ def native_canvas(store, project, chapter_id, analysis_id=None):
             links.append({"from": shots[index - 1]["id"], "slot": 1, "to": shot["id"], "input": "story_context", "type": "ASTROGATE_STORY", "label": "叙事顺序"})
         nodes[-1]["title"] = " · ".join(str(part) for part in (f"{index + 1:03d}", shot.get("shot_size"), shot["summary"]) if part)
         nodes[-1]["properties"]["astrogate_scene"] = asset_by_id(project, scene_id)["name"] if scene_id != "none" else "空镜 / 未指定场景"
+    imported = project.get("video_import")
+    if imported and imported.get("status") == "completed":
+        names = set(imported.get("protagonists", []))
+        featured = {a["id"] for a in project["assets"] if a["kind"] == "character" and
+                    (a["name"] in names or names.intersection(a.get("aliases", [])))}
+        if not featured:
+            counts = {}
+            for shot in shots:
+                for person in shot.get("participants", []):
+                    identity = (person.get("identity") or {}).get("asset_id")
+                    if identity:
+                        counts[identity] = counts.get(identity, 0) + 1
+            featured = set(sorted(counts, key=counts.get, reverse=True)[:3])
+        for item in list(nodes):
+            kind = item["properties"].get("astrogate_kind")
+            if kind not in ("character", "scene", "shot"):
+                continue
+            owner = next((a for a in project["assets"] if a["id"] == item["properties"]["astrogate_owner"]), None) if kind != "shot" else next((s for s in shots if s["id"] == item["id"]), None)
+            if kind == "character":
+                item["properties"]["astrogate_is_protagonist"] = owner["id"] in featured
+                if owner["id"] in featured:
+                    item["title"] = "★ 主角 · " + item["title"]
+            image = owner.get("video_reference") if owner else None
+            if not image:
+                continue
+            source_key = item["id"] + "::video_source"
+            nodes.append({"id": source_key, "type": "LoadImage", "title": "原片参考 · " + item["title"],
+                          "pos": [item["pos"][0] - 230, item["pos"][1] + 350], "color": "#504d43",
+                          "properties": {"astrogate_project": project["id"], "astrogate_key": source_key, "astrogate_kind": "video_source"},
+                          "widgets": {"image": image["file"]}})
+            slot = 1 + sum(link["to"] == item["id"] and link["type"] == "IMAGE" for link in links)
+            links.append({"from": source_key, "slot": 0, "to": item["id"], "input": f"reference_images.reference_{slot}", "type": "IMAGE", "label": "原片参考"})
     return {"project_id": project["id"], "chapter_id": chapter_id, "layout_version": 5, "reference_wiring_version": 4,
             "character_aliases": character_aliases, "nodes": nodes, "links": links}
 

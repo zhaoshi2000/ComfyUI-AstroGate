@@ -12,6 +12,7 @@ from server import PromptServer
 from .analysis import MODELS, analyse
 from .graph import draft_canvas, plan, prepare
 from .native import native_canvas, prepare_native
+from .video_import import video_project
 from .store import Store, aspect_ratio, asset_by_id, binding, invalidate, merge_asset, new_id, parse_novel, publish_version, save_dialogue, save_dialogue_links, validate_shot, version
 from .video import video_prompt
 
@@ -96,6 +97,19 @@ def register_routes(recover_image=None, generate_image=None):
         if len(data) > 20 * 1024 * 1024:
             raise ValueError("TXT 超过20MB，请拆成多个项目导入。")
         project = parse_novel(bytes(data), Path(field.filename).stem)
+        return web.json_response(store.create(owner(request), project))
+
+    @route("POST", "/projects/video")
+    async def create_video(request):
+        body = await request.json()
+        filename = body.get("file")
+        if not isinstance(filename, str) or not folder_paths.exists_annotated_filepath(filename):
+            raise ValueError("请先在加载视频节点选择本机视频文件。")
+        path = folder_paths.get_annotated_filepath(filename)
+        if Path(path).suffix.lower() not in (".mp4", ".mov", ".mkv", ".webm", ".avi"):
+            raise ValueError("请选择 MP4、MOV、MKV、WebM 或 AVI 视频。")
+        project = video_project(Path(path).stem)
+        project["video_import"]["file"] = filename
         return web.json_response(store.create(owner(request), project))
 
     @route("GET", "/projects/{project}")
@@ -466,6 +480,7 @@ def register_routes(recover_image=None, generate_image=None):
                     archive.writestr(f"video_prompts/{chapter['id']}.json", json.dumps({key: video[key] for key in ("images", "audios", "warnings", "shot_ids")}, ensure_ascii=False, indent=2))
             images = {v["image"]["file"] for a in project["assets"] for v in a["versions"] if v.get("image")}
             images.update(j["result_image"]["file"] for j in jobs if j.get("result_image"))
+            images.update(frame["image"]["file"] for frame in project.get("video_import", {}).get("frames", []))
             for relative in sorted(images):
                 source = store.image_path(relative)
                 if source.is_file():

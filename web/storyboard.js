@@ -709,7 +709,9 @@ async function buildBoard(board, info, relayout = false, partial = false) {
         message(board, partial ? `已建立 ${frames.length} 个分镜，正在继续分析后续正文块。` : `已建立 ${frames.length} 个分镜，每个人物一张设定卡。默认只参考出镜人物，场景与前情使用文字。${auto ? "正在自动生成图片…" : "可生成本章或选中图片。"}`);
         await saveBoard(board);
         if (frames.length && !partial) focusNode([...mapping.values()].find(n => n.properties.astrogate_view === "sheet") || frames[0]);
-        if (auto) await generate([...frames, ...[...mapping.values()].filter(n => n.properties.astrogate_kind === "character")], false, board);
+        if (auto) await generate([...frames, ...[...mapping.values()].filter(n => info.video_import ?
+            (n.properties.astrogate_kind === "character" && n.properties.astrogate_is_protagonist || n.properties.astrogate_kind === "scene") :
+            n.properties.astrogate_kind === "character")], false, board);
     })();
     try { return await board.agBuilding; }
     finally { delete board.agBuilding; }
@@ -879,8 +881,8 @@ async function generate(targets, force = false, reporter = targets[0]) {
             await queueNodes(ready, prepared, graph);
         }
         const batch = [...visited].map(id => value(app.graph.getNodeById(id), "job_id")).filter(Boolean);
-        for (const board of new Set([reporter, ...targets.map(n => sourceNode(n, "board"))].filter(n => n?.type === "AstroGateStoryboard"))) board.properties.astrogate_generation_jobs = batch;
-        for (const board of nodes().filter(n => n.type === "AstroGateStoryboard" && n.properties.astrogate_board)) await saveBoard(board);
+        for (const board of new Set([reporter, ...targets.map(n => sourceNode(n, "board"))].filter(n => ["AstroGateStoryboard", "AstroGateVideoAnalysis"].includes(n?.type)))) board.properties.astrogate_generation_jobs = batch;
+        for (const board of nodes().filter(n => ["AstroGateStoryboard", "AstroGateVideoAnalysis"].includes(n.type) && n.properties.astrogate_board)) await saveBoard(board);
     } catch (error) {
         if (!submitted) for (const job of prepared) if (job.status !== "succeeded") await request(`/jobs/${job.id}/cancel`, {});
         throw error;
@@ -915,6 +917,48 @@ function installSource(node) {
     root.append(info, button(node, "选择 TXT 文件", () => pickTXT(node), "primary"), node.agStatus);
     node.agRefresh = () => { info.textContent = [node.properties.astrogate_filename || "未选择 TXT 文件", ...(node.properties.astrogate_chapters || []).map((v, i) => `${i + 1}. ${v}`)].join("\n"); };
     node.size = [390, 240];
+}
+function installVideoAnalysis(node) {
+    const project = node.widgets.find(w => w.name === "project_id");
+    if (project) project.hidden = true;
+    const root = element("div", undefined, "ag-native");
+    panelWidget(node, root, () => 185);
+    const info = element("div", "连接‘加载视频’节点后开始", "ag-file-info");
+    const analyze = async () => {
+        const source = sourceNode(node, "video");
+        const file = value(source || {}, "file");
+        if (!file) throw new Error("请连接原生‘加载视频’节点并选择本机视频。 ");
+        if (node.properties.astrogate_video_file !== file || !value(node, "project_id")) {
+            const created = await request("/projects/video", {file});
+            setValue(node, "project_id", created.id);
+            node.properties.astrogate_video_file = file;
+        }
+        message(node, "正在排队提取视频字幕和画面…", true);
+        await queueNodes([node]);
+    };
+    const controls = element("div", undefined, "ag-native-actions");
+    controls.append(button(node, "分析视频并建立剧情图", analyze, "primary"),
+        button(node, "重新分析", async () => { setValue(node, "analysis_revision", Number(value(node, "analysis_revision")) + 1); await analyze(); }),
+        button(node, "生成缺少的图片", async () => {
+            const board = node.properties.astrogate_board;
+            if (!board) throw new Error("请先分析视频。 ");
+            const targets = nodes().filter(n => n.type === "AstroGateStoryboardFrame" && n.properties.astrogate_project === board.project_id &&
+                n.properties.astrogate_chapter === board.chapter_id && !n.properties.astrogate_images?.length);
+            if (targets.length) await generate(targets, true, node);
+            else message(node, "图片已生成或正在排队。 ");
+        }),
+        button(node, "导出剧情图与原片帧", async () => {
+            const board = node.properties.astrogate_board;
+            if (!board) throw new Error("请先分析视频。 ");
+            await saveBoard(node);
+            const a = element("a");
+            a.href = api.apiURL(`${base}/projects/${board.project_id}/export`);
+            a.download = "astrogate-video-storyboard.zip";
+            a.click();
+        }));
+    root.append(info, controls, progressBar(node), node.agStatus);
+    node.agRefresh = () => { info.textContent = node.properties.astrogate_video_file || "连接‘加载视频’节点后开始"; };
+    node.size = [430, 350];
 }
 const scriptSources = new Map();
 async function analysisContext(node) {
@@ -1540,11 +1584,11 @@ app.registerExtension({
             installFold(nodeType);
             return;
         }
-        if (!["AstroGateTXT", "AstroGateStoryboard", "AstroGateStoryboardFrame"].includes(nodeData.name)) return;
+        if (!["AstroGateTXT", "AstroGateStoryboard", "AstroGateVideoAnalysis", "AstroGateStoryboardFrame"].includes(nodeData.name)) return;
         const created = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             const result = created?.apply(this, arguments);
-            ({AstroGateTXT: installSource, AstroGateStoryboard: installBoard, AstroGateStoryboardFrame: installFrame})[nodeData.name](this);
+            ({AstroGateTXT: installSource, AstroGateStoryboard: installBoard, AstroGateVideoAnalysis: installVideoAnalysis, AstroGateStoryboardFrame: installFrame})[nodeData.name](this);
             return result;
         };
         const configured = nodeType.prototype.onConfigure;
