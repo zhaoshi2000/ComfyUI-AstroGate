@@ -249,7 +249,7 @@ def attach_frames(project, analysis_id):
     shots = [shot for shot in project["shots"] if shot.get("analysis_id") == analysis_id]
     for shot in shots:
         shot["video_reference"] = next((by_line[ref["paragraph_id"]]["image"] for ref in shot.get("source_refs", []) if ref["paragraph_id"] in by_line), frames[0]["image"])
-    used_frames = {asset["video_reference"]["file"] for asset in project["assets"] if asset["kind"] == "character" and asset.get("video_reference")}
+    used_frames = {asset["video_reference"].get("hash") or asset["video_reference"]["file"] for asset in project["assets"] if asset["kind"] == "character" and asset.get("video_reference")}
     for asset in project["assets"]:
         if asset["kind"] not in ("character", "scene") or asset.get("video_reference"):
             continue
@@ -266,13 +266,13 @@ def attach_frames(project, analysis_id):
             if visible != {asset["id"]}:
                 continue
             candidates.extend(by_line[ref["paragraph_id"]] for ref in shot.get("source_refs", []) if ref["paragraph_id"] in by_line)
-        clear = [frame for frame in candidates if frame["image"]["file"] not in used_frames]
+        clear = [frame for frame in candidates if (frame["image"].get("hash") or frame["image"]["file"]) not in used_frames]
         if clear:
             selected = max(clear, key=lambda frame: frame.get("portrait_score", 0))
             asset["video_reference"] = selected["image"]
             asset["video_reference_time"] = selected["time"]
             asset["video_reference_status"] = "suggested"
-            used_frames.add(selected["image"]["file"])
+            used_frames.add(selected["image"].get("hash") or selected["image"]["file"])
 
 
 async def analyse_video(store, project_id, video, model, interval, region, style, density, revision, on_progress=None, source_mode="语音转文字（CUDA）"):

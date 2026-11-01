@@ -121,11 +121,16 @@ def test_character_reference_uses_clearest_solo_shot_frame(modules, project):
     third["participants"] = [{"visible": True, "identity": modules.domain.binding(project, "周野")},
                              {"visible": True, "identity": modules.domain.binding(project, "林夏")}]
     third["source_refs"] = [{"paragraph_id": "line3", "quote": None}]
-    project["shots"] = [original, second, third]
+    fourth = copy.deepcopy(third)
+    fourth["id"] = "shot4"
+    fourth["participants"] = [third["participants"][0]]
+    fourth["source_refs"] = [{"paragraph_id": "line4", "quote": None}]
+    project["shots"] = [original, second, third, fourth]
     project["video_import"] = {"frames": [
         {"time": 0, "image": {"file": "astrogate/test/soft.png"}, "line_id": "line1", "portrait_score": 10},
-        {"time": 1, "image": {"file": "astrogate/test/clear.png"}, "line_id": "line2", "portrait_score": 80},
-        {"time": 2, "image": {"file": "astrogate/test/group.png"}, "line_id": "line3", "portrait_score": 90}]}
+        {"time": 1, "image": {"file": "astrogate/test/clear.png", "hash": "same-frame"}, "line_id": "line2", "portrait_score": 80},
+        {"time": 2, "image": {"file": "astrogate/test/group.png"}, "line_id": "line3", "portrait_score": 90},
+        {"time": 3, "image": {"file": "astrogate/test/copy.png", "hash": "same-frame"}, "line_id": "line4", "portrait_score": 90}]}
     video.attach_frames(project, "analysis1")
     assert project["assets"][0]["video_reference"]["file"].endswith("clear.png")
     assert project["assets"][0]["video_reference_time"] == 1
