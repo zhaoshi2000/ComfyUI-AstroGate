@@ -924,23 +924,36 @@ function installVideoAnalysis(node) {
     const root = element("div", undefined, "ag-native");
     panelWidget(node, root, () => 185);
     const info = element("div", "连接‘加载视频’节点后开始", "ag-file-info");
-    const analyze = async () => {
+    const analyze = async (resumeFailed = true) => {
         const source = sourceNode(node, "video");
         const file = value(source || {}, "file");
         const mode = value(node, "subtitle_source") || "语音转文字（CUDA）";
         if (!file) throw new Error("请连接原生‘加载视频’节点并选择本机视频。 ");
-        if (node.properties.astrogate_video_file !== file || node.properties.astrogate_source_mode !== mode || !value(node, "project_id")) {
+        const newProject = node.properties.astrogate_video_file !== file || node.properties.astrogate_source_mode !== mode || !value(node, "project_id");
+        if (newProject) {
             const created = await request("/projects/video", {file});
             setValue(node, "project_id", created.id);
             node.properties.astrogate_video_file = file;
             node.properties.astrogate_source_mode = mode;
         }
+        if (!newProject && resumeFailed) {
+            const {jobs} = await request(`/projects/${value(node, "project_id")}?summary=1`);
+            const job = jobs.find(item => item.kind === "text");
+            if (job && active.has(job.status)) { message(node, "人物与分镜分析仍在进行，完成后会自动挂接画布。", true); return; }
+            if (job && ["failed", "unknown"].includes(job.status)) {
+                await request(`/jobs/${job.id}/resume`, {});
+                node.properties.astrogate_resume_job = job.id;
+                app.graph.change?.();
+                message(node, "已继续未完成的文本分析；已保存的对白和草稿会复用。", true);
+                return;
+            }
+        }
         message(node, `正在排队${mode === "语音转文字（CUDA）" ? "转写对白" : "识别画面字幕"}并抽帧…`, true);
         await queueNodes([node]);
     };
     const controls = element("div", undefined, "ag-native-actions");
-    controls.append(button(node, "分析视频并建立剧情图", analyze, "primary"),
-        button(node, "重新分析", async () => { setValue(node, "analysis_revision", Number(value(node, "analysis_revision")) + 1); await analyze(); }),
+    controls.append(button(node, "分析视频并建立剧情图", () => analyze(), "primary"),
+        button(node, "重新分析", async () => { setValue(node, "analysis_revision", Number(value(node, "analysis_revision")) + 1); await analyze(false); }),
         button(node, "生成缺少的图片", async () => {
             const board = node.properties.astrogate_board;
             if (!board) throw new Error("请先分析视频。 ");
@@ -1534,8 +1547,16 @@ async function poll() {
             for (const node of videoBoards.filter(n => value(n, "project_id") === project)) {
                 const job = result.jobs.find(j => j.kind === "text");
                 if (job) activityEntries.push({node, job});
+                const resumed = result.jobs.find(j => j.id === node.properties.astrogate_resume_job);
+                if (resumed?.status === "succeeded") {
+                    delete node.properties.astrogate_resume_job;
+                    app.graph.change?.();
+                    await queueNodes([node]);
+                    continue;
+                }
+                if (resumed && ["failed", "unknown"].includes(resumed.status)) delete node.properties.astrogate_resume_job;
                 if (job && active.has(job.status)) message(node, `正在分析人物、场景与分镜 · ${job.completed_chunks || 0}/${job.total_chunks || "?"} 块`, true);
-                else if (job && ["failed", "unknown"].includes(job.status)) message(node, job.error || "视频分镜分析未完成；点击重新分析。", false, true);
+                else if (job && ["failed", "unknown"].includes(job.status)) message(node, `${job.error || "视频分镜分析未完成。"}\n点击“分析视频并建立剧情图”继续未完成步骤。`, false, true);
                 else if (job?.status === "succeeded" && !node.properties.astrogate_board) {
                     const {project: saved} = await request(`/projects/${project}`);
                     if (saved.video_import?.status === "completed") await buildBoard(node, saved.video_import.board);

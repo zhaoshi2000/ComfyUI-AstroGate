@@ -7,7 +7,7 @@ import { webcrypto } from "node:crypto";
 const source = await readFile(new URL("../web/storyboard.js", import.meta.url), "utf8");
 async function load(app, extras = {}, api = {}) {
     const context = vm.createContext({queueMicrotask, structuredClone, console, JSON, Set, Map, URLSearchParams, TextEncoder, crypto: webcrypto, ...extras});
-    const module = new vm.SourceTextModule(source + "\nexport { installFold, mountGraph, changed, generate, installFrame, installDialogue, analysisContext, startAnalysis, showAnalysisState, poll, panelWidget, activityStatus, activityLines, message, createActivityPanel, buildBoard, applyFrameAspect, batchProgress, addSceneAngle, addVideoNode, nodeSignature, upgradeSignature };", {context});
+    const module = new vm.SourceTextModule(source + "\nexport { installFold, mountGraph, changed, generate, installFrame, installDialogue, installVideoAnalysis, analysisContext, startAnalysis, showAnalysisState, poll, panelWidget, activityStatus, activityLines, message, createActivityPanel, buildBoard, applyFrameAspect, batchProgress, addSceneAngle, addVideoNode, nodeSignature, upgradeSignature };", {context});
     await module.link(async specifier => {
         const name = specifier.includes("app.js") ? "app" : "api";
         return new vm.SyntheticModule([name], function () { this.setExport(name, name === "app" ? app : api); }, {context});
@@ -85,6 +85,33 @@ test("imported video frames connect as image references in the existing board", 
     assert.equal(mapping.get("shot::video_source").type, "LoadImage");
     assert.equal(mapping.get("shot").inputs.find(i => i.name === "reference_images.reference_1").link != null, true);
     assert.equal(mapping.get("shot::video_source").widgets.find(w => w.name === "image").value, "astrogate/p/frame.png");
+});
+test("video analysis click resumes a failed text job without repeating transcription", async () => {
+    class Element {
+        constructor(tag) { this.tag = tag; this.children = []; this.events = {}; this.classList = {toggle() {}}; }
+        append(...items) { this.children.push(...items); }
+        addEventListener(name, fn) { (this.events[name] ||= []).push(fn); }
+        async fire(name) { for (const fn of this.events[name] || []) await fn({}); }
+    }
+    const calls = [];
+    const source = {widgets: [{name: "file", value: "clip.mp4"}]};
+    const graph = {links: {1: {origin_id: 2}}, getNodeById: () => source, change() {}};
+    const node = {type: "AstroGateVideoAnalysis", id: 1, properties: {astrogate_video_file: "clip.mp4", astrogate_source_mode: "语音转文字（CUDA）"},
+        widgets: [{name: "project_id", value: "project"}, {name: "subtitle_source", value: "语音转文字（CUDA）"}],
+        inputs: [{name: "video", link: 1}], agStatus: new Element("div"), setDirtyCanvas() {},
+        addDOMWidget(name, type, root) { this.card = root; return {options: {}}; }};
+    const app = {registerExtension() {}, graph};
+    const api = {fetchApi: async (path, options) => {
+        calls.push(path);
+        if (path.includes("?summary=1")) return {ok: true, json: async () => ({jobs: [{id: "failed-job", kind: "text", status: "failed"}]})};
+        return {ok: true, json: async () => ({status: "prepared"})};
+    }};
+    const {installVideoAnalysis} = await load(app, {document: {createElement: tag => new Element(tag)}, FormData: class {}}, api);
+    installVideoAnalysis(node);
+    await node.card.children[1].children[0].fire("click");
+    assert.equal(node.properties.astrogate_resume_job, "failed-job");
+    assert.equal(calls.some(path => path.endsWith("/jobs/failed-job/resume")), true);
+    assert.equal(calls.some(path => path === "/prompt"), false);
 });
 test("legacy folding preserves values, references and output previews", async () => {
     const app = {registerExtension() {}, nodeOutputs: {}};
