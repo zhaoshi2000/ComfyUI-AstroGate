@@ -97,13 +97,14 @@ test("video analysis click resumes a failed text job without repeating transcrip
     const source = {widgets: [{name: "file", value: "clip.mp4"}]};
     const graph = {links: {1: {origin_id: 2}}, getNodeById: () => source, change() {}};
     const node = {type: "AstroGateVideoAnalysis", id: 1, properties: {astrogate_video_file: "clip.mp4", astrogate_source_mode: "语音转文字（CUDA）"},
-        widgets: [{name: "project_id", value: "project"}, {name: "subtitle_source", value: "语音转文字（CUDA）"}],
+        widgets: [{name: "project_id", value: "project"}, {name: "subtitle_source", value: "语音转文字（CUDA）"},
+            {name: "text_model", value: "gpt-6-luna"}, {name: "style", value: "写实"}, {name: "density", value: "精细"}],
         inputs: [{name: "video", link: 1}], agStatus: new Element("div"), setDirtyCanvas() {},
         addDOMWidget(name, type, root) { this.card = root; return {options: {}}; }};
     const app = {registerExtension() {}, graph};
     const api = {fetchApi: async (path, options) => {
         calls.push(path);
-        if (path.includes("?summary=1")) return {ok: true, json: async () => ({jobs: [{id: "failed-job", kind: "text", status: "failed"}]})};
+        if (path.includes("?summary=1")) return {ok: true, json: async () => ({jobs: [{id: "failed-job", kind: "text", status: "failed", model: "gpt-6-luna", style: "写实", density: "精细"}]})};
         return {ok: true, json: async () => ({status: "prepared"})};
     }};
     const {installVideoAnalysis} = await load(app, {document: {createElement: tag => new Element(tag)}, FormData: class {}}, api);

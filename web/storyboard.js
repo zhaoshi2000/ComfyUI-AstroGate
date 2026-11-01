@@ -939,8 +939,9 @@ function installVideoAnalysis(node) {
         if (!newProject && resumeFailed) {
             const {jobs} = await request(`/projects/${value(node, "project_id")}?summary=1`);
             const job = jobs.find(item => item.kind === "text");
-            if (job && active.has(job.status)) { message(node, "人物与分镜分析仍在进行，完成后会自动挂接画布。", true); return; }
-            if (job && ["failed", "unknown"].includes(job.status)) {
+            const sameSettings = job?.model === value(node, "text_model") && job?.style === value(node, "style") && job?.density === value(node, "density");
+            if (sameSettings && active.has(job.status)) { message(node, "人物与分镜分析仍在进行，完成后会自动挂接画布。", true); return; }
+            if (sameSettings && ["failed", "unknown"].includes(job.status)) {
                 await request(`/jobs/${job.id}/resume`, {});
                 node.properties.astrogate_resume_job = job.id;
                 app.graph.change?.();
