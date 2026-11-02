@@ -7,7 +7,7 @@ import { webcrypto } from "node:crypto";
 const source = await readFile(new URL("../web/storyboard.js", import.meta.url), "utf8");
 async function load(app, extras = {}, api = {}) {
     const context = vm.createContext({queueMicrotask, structuredClone, console, JSON, Set, Map, URLSearchParams, TextEncoder, crypto: webcrypto, ...extras});
-    const module = new vm.SourceTextModule(source + "\nexport { installFold, mountGraph, changed, generate, installFrame, installDialogue, installVideoAnalysis, analysisContext, startAnalysis, showAnalysisState, poll, panelWidget, activityStatus, activityLines, message, createActivityPanel, buildBoard, applyFrameAspect, batchProgress, addSceneAngle, addVideoNode, nodeSignature, upgradeSignature };", {context});
+    const module = new vm.SourceTextModule(source + "\nexport { installFold, mountGraph, changed, generate, installFrame, installDialogue, installVideoAnalysis, openVideoProject, analysisContext, startAnalysis, showAnalysisState, poll, panelWidget, activityStatus, activityLines, message, createActivityPanel, buildBoard, applyFrameAspect, batchProgress, addSceneAngle, addVideoNode, nodeSignature, upgradeSignature };", {context});
     await module.link(async specifier => {
         const name = specifier.includes("app.js") ? "app" : "api";
         return new vm.SyntheticModule([name], function () { this.setExport(name, name === "app" ? app : api); }, {context});
@@ -25,7 +25,7 @@ function graphMock() {
             findInputSlot(name) { return this.inputs.findIndex(i => i.name === name); },
             serialize() { return {id: this.id, type: this.type, properties: structuredClone(this.properties), widgets_values: this.widgets.map(w => w.value)}; },
             addInput(name, type) { this.inputs.push({name, type}); }, setDirtyCanvas() {},
-            connect(output, target, slot) { const id = ++linkId; graph.links[id] = {origin_id: this.id, origin_slot: output, target_id: target.id}; target.inputs[slot].link = id; },
+            connect(output, target, slot) { const id = ++linkId; graph.links[id] = {origin_id: this.id, origin_slot: output, target_id: target.id, type: target.inputs[slot].type}; target.inputs[slot].link = id; },
             disconnectInput(slot) { const input = this.inputs[slot]; if (input?.link != null) { delete graph.links[input.link]; input.link = null; } },
         };
     }};
@@ -85,6 +85,69 @@ test("imported video frames connect as image references in the existing board", 
     assert.equal(mapping.get("shot::video_source").type, "LoadImage");
     assert.equal(mapping.get("shot").inputs.find(i => i.name === "reference_images.reference_1").link != null, true);
     assert.equal(mapping.get("shot::video_source").widgets.find(w => w.name === "image").value, "astrogate/p/frame.png");
+});
+
+test("video layout removes black source cards and reconnects the next shot", async () => {
+    const {graph, LiteGraph} = graphMock(); graph.change = () => {};
+    const board = LiteGraph.createNode("AstroGateVideoAnalysis"); board.pos = [0, 0]; graph.add(board);
+    const app = {registerExtension() {}, graph, nodeOutputs: {}};
+    const {mountGraph} = await load(app, {LiteGraph});
+    const frame = (id, position) => ({id, type: "AstroGateStoryboardFrame", title: id, pos: position,
+        widgets: {prompt: id, job_id: "", aspect_ratio: "16:9", resolution: "4K", quality: "high"},
+        properties: {astrogate_project: "p", astrogate_owner: id, astrogate_key: id, astrogate_kind: "shot", astrogate_base_prompt: id, astrogate_layout_version: 5}});
+    const old = {project_id: "p", chapter_id: "c", layout_version: 5, reference_wiring_version: 4,
+        nodes: [frame("a", [500, 80]), frame("black", [500, 800]), frame("b", [500, 1520]),
+            {...frame("old", [0, 0]), properties: {...frame("old", [0, 0]).properties, astrogate_kind: "character"}},
+            {...frame("lead", [0, 700]), properties: {...frame("lead", [0, 700]).properties, astrogate_kind: "character", astrogate_is_protagonist: false}},
+            {id: "black::video_source", type: "LoadImage", title: "黑场", pos: [200, 800], widgets: {image: "black.png"},
+                properties: {astrogate_project: "p", astrogate_key: "black::video_source", astrogate_kind: "video_source"}}],
+        links: [{from: "black", slot: 1, to: "b", input: "story_context", type: "ASTROGATE_STORY"},
+            {from: "old", slot: 0, to: "b", input: "reference_images.reference_1", type: "IMAGE"}]};
+    mountGraph(board, old);
+    const next = {...old, layout_version: 6, prune_keys: ["black", "black::video_source", "old"], character_aliases: {old: "lead"},
+        nodes: [frame("a", [2180, 80]), frame("b", [2180, 800]),
+            {...frame("lead", [520, 80]), properties: {...frame("lead", [520, 80]).properties, astrogate_kind: "character", astrogate_is_protagonist: true, astrogate_layout_version: 6}}],
+        links: [{from: "a", slot: 1, to: "b", input: "story_context", type: "ASTROGATE_STORY"}]};
+    const mapping = mountGraph(board, next, true);
+    assert.equal(graph._nodes.some(node => ["black", "black::video_source", "old"].includes(node.properties.astrogate_key)), false);
+    assert.deepEqual(Array.from(mapping.get("b").pos), [2180, 800]);
+    assert.equal(mapping.get("lead").properties.astrogate_is_protagonist, true);
+    assert.equal(graph.getNodeById(graph.links[mapping.get("b").inputs.find(input => input.name === "story_context").link].origin_id), mapping.get("a"));
+    assert.equal(graph.getNodeById(graph.links[mapping.get("b").inputs.find(input => input.name === "reference_images.reference_1").link].origin_id), mapping.get("lead"));
+});
+test("opening an analysed video builds a draggable ComfyUI graph without regenerating images", async () => {
+    const {graph, LiteGraph} = graphMock(); graph.change = () => {}; graph.serialize = () => ({nodes: graph._nodes.map(n => n.serialize())});
+    const create = LiteGraph.createNode;
+    LiteGraph.createNode = type => {
+        const node = create(type);
+        if (type === "AstroGateVideoAnalysis") node.widgets.push(...Object.entries({project_id: "", text_model: "", style: "", density: "", frame_aspect_ratio: "16:9", resolution: "4K", quality: "high", subtitle_source: ""}).map(([name, value]) => ({name, value})));
+        if (type === "LoadVideo") node.widgets.push({name: "file", value: ""});
+        return node;
+    };
+    const id = "a".repeat(32), chapter = "chapter";
+    const project = {id, settings: {text_model: "gpt-6-luna", style: "黑白电影", density: "逐镜", aspect_ratio: "16:9", resolution: "2K", quality: "medium"},
+        video_import: {file: "clip.mp4", source_mode: "语音转文字（CUDA）", board: {project_id: id, chapter_id: chapter, analysis_id: "done", video_import: true}}};
+    const calls = [];
+    const api = {fetchApi: async (path, options) => {
+        calls.push([path, options?.body ? JSON.parse(options.body) : null]);
+        const data = path.endsWith(`/projects/${id}`) ? {project} : path.endsWith("/native/canvas") ?
+            {project_id: id, chapter_id: chapter, layout_version: 5, reference_wiring_version: 4,
+                nodes: [{id: "shot", type: "AstroGateStoryboardFrame", title: "近景", pos: [520, 80],
+                    widgets: {prompt: "近景", job_id: "", aspect_ratio: "16:9", resolution: "2K", quality: "medium"},
+                    properties: {astrogate_project: id, astrogate_owner: "shot", astrogate_key: "shot", astrogate_kind: "shot",
+                        astrogate_video_frame: {filename: "frame.png", subfolder: "astrogate/p", type: "input"}}}],
+                links: [{from: "$board", slot: 0, to: "shot", input: "board", type: "ASTROGATE_BOARD"}]} : {};
+        return {ok: true, json: async () => data};
+    }};
+    const app = {registerExtension() {}, graph, nodeOutputs: {}, canvas: {ds: {}, centerOnNode() {}, selectNode() {}}};
+    const {openVideoProject} = await load(app, {LiteGraph, FormData: class {}}, api);
+    const board = await openVideoProject(`http://host/logic.html?project=${id}`);
+    assert.equal(board.type, "AstroGateVideoAnalysis");
+    assert.equal(graph._nodes.find(n => n.type === "LoadVideo").widgets.find(w => w.name === "file").value, "clip.mp4");
+    assert.equal(board.inputs.find(i => i.name === "video").link != null, true);
+    assert.equal(graph._nodes.find(n => n.properties.astrogate_key === "shot").properties.astrogate_video_frame.filename, "frame.png");
+    assert.equal(board.widgets.find(w => w.name === "resolution").value, "2K");
+    assert.equal(calls.some(([path]) => path === "/prompt" || path.endsWith("/native/prepare")), false);
 });
 test("video analysis click resumes a failed text job without repeating transcription", async () => {
     class Element {

@@ -280,13 +280,14 @@ function restorePreview(node) {
     const images = node.properties.astrogate_images;
     if (images?.length) {
         app.nodeOutputs[String(node.id)] = {images};
-        if (node.agImage) {
-            const url = api.apiURL("/view?" + new URLSearchParams(images[0]));
-            if (node.agImage.getAttribute("src") !== url) node.agImage.src = url;
-            node.agImage.hidden = false;
-            node.agEmpty.hidden = true;
-        }
     }
+    const preview = images?.[0] || node.properties.astrogate_video_frame;
+    if (!node.agImage || !preview) return;
+    const url = api.apiURL("/view?" + new URLSearchParams(preview));
+    if (node.agImage.getAttribute("src") !== url) node.agImage.src = url;
+    node.agImage.hidden = false;
+    node.agEmpty.hidden = true;
+    if (node.agSourceHint) node.agSourceHint.hidden = Boolean(images?.length);
 }
 const dialogueProjects = new Map();
 const dialogueRevisions = new Map();
@@ -440,7 +441,7 @@ function installDialogue(node, resizeCard) {
     return detail;
 }
 function downloadPreview(node) {
-    const image = node.properties.astrogate_images?.[0];
+    const image = node.properties.astrogate_images?.[0] || node.properties.astrogate_video_frame;
     if (!image?.filename) throw new Error("当前节点还没有可下载的图片。");
     const link = element("a");
     link.href = api.apiURL("/view?" + new URLSearchParams(image));
@@ -546,7 +547,7 @@ function mountGraph(board, recipe, relayout = false) {
                     if (editable) { setValue(node, "prompt", item.widgets.prompt); node.properties.astrogate_base_prompt = item.widgets.prompt; }
                     setValue(node, "job_id", item.widgets.job_id);
                 }
-                for (const key of ["astrogate_view", "astrogate_layout_version", "astrogate_reference_purpose", "astrogate_prompt_folded", "astrogate_look_id", "astrogate_look_version"]) node.properties[key] = item.properties[key];
+                for (const key of ["astrogate_view", "astrogate_layout_version", "astrogate_reference_purpose", "astrogate_prompt_folded", "astrogate_look_id", "astrogate_look_version", "astrogate_is_protagonist"]) node.properties[key] = item.properties[key];
                 node.title = item.title;
                 if (editable && !value(node, "job_id")) { setValue(node, "prompt", item.widgets.prompt); node.properties.astrogate_base_prompt = item.widgets.prompt; }
                 if (["character", "look", "scene", "scene_state"].includes(item.properties.astrogate_kind)) setValue(node, "aspect_ratio", item.widgets.aspect_ratio);
@@ -561,6 +562,7 @@ function mountGraph(board, recipe, relayout = false) {
         }
         if (item.properties.astrogate_kind === "shot" && node.properties.astrogate_atmosphere === undefined) node.properties.astrogate_atmosphere = item.properties.astrogate_atmosphere || "";
         if (item.properties.astrogate_kind === "shot" && node.properties.astrogate_video_prompt === undefined) node.properties.astrogate_video_prompt = item.properties.astrogate_video_prompt || "";
+        if (item.properties.astrogate_video_frame) node.properties.astrogate_video_frame = item.properties.astrogate_video_frame;
         node.properties.astrogate_chapter = recipe.chapter_id;
         node.agRefresh?.();
         restorePreview(node);
@@ -579,13 +581,15 @@ function mountGraph(board, recipe, relayout = false) {
     }
     if (recipe.layout_version >= 3) {
         const wanted = new Set(recipe.nodes.map(item => item.id));
-        const obsolete = nodes().filter(node => node.type === "AstroGateStoryboardFrame" && node.properties.astrogate_project === recipe.project_id &&
+        const pruned = new Set(recipe.prune_keys || []);
+        const obsolete = nodes().filter(node => ["AstroGateStoryboardFrame", "LoadImage"].includes(node.type) && node.properties.astrogate_project === recipe.project_id &&
             node.properties.astrogate_chapter === recipe.chapter_id && !wanted.has(node.properties.astrogate_key) &&
-            (node.properties.astrogate_key?.endsWith("::left") || node.properties.astrogate_kind === "prop" ||
+            (pruned.has(node.properties.astrogate_key) || (node.type === "AstroGateStoryboardFrame" && (node.properties.astrogate_key?.endsWith("::left") || node.properties.astrogate_kind === "prop" ||
                 (recipe.layout_version >= 4 && node.properties.astrogate_kind === "look") ||
-                (recipe.replace_shots && node.properties.astrogate_kind === "shot" && sourceNode(node, "board") === board)));
+                (recipe.replace_shots && node.properties.astrogate_kind === "shot" && sourceNode(node, "board") === board)))));
         if (obsolete.length) {
             const ids = new Set(obsolete.map(node => node.id));
+            const storyTargets = new Set(Object.values(app.graph.links).filter(link => ids.has(link.origin_id) && link.type === "ASTROGATE_STORY").map(link => link.target_id));
             const archive = board.properties.astrogate_previous_asset_layout ||= {nodes: [], links: []};
             archive.nodes.push(...obsolete.map(node => node.serialize()));
             archive.links.push(...Object.values(app.graph.links).filter(link => ids.has(link.origin_id) || ids.has(link.target_id))
@@ -606,6 +610,10 @@ function mountGraph(board, recipe, relayout = false) {
                 if (unchanged && target.properties.astrogate_signature) target.properties.astrogate_signature = nodeSignature(target);
             }
             for (const node of obsolete) app.graph.remove(node);
+            for (const link of recipe.links.filter(link => link.type === "ASTROGATE_STORY")) {
+                const target = mapping.get(link.to);
+                if (target && storyTargets.has(target.id) && !sourceNode(target, "story_context")) connect(mapping.get(link.from), link.slot, target, link.input, link.type);
+            }
         }
     }
     if (recipe.layout_version >= 4 && board.properties.astrogate_wiring_version !== recipe.reference_wiring_version) {
@@ -722,12 +730,24 @@ async function applyFrameAspect(board) {
     if (parts.length !== 2 || parts.some(v => !Number.isFinite(v) || v <= 0)) throw new Error("画幅请输入宽:高，例如 16:9 或 2.39:1。");
     ratio = parts.join(":");
     setValue(board, "frame_aspect_ratio", ratio);
-    const project = value(sourceNode(board, "script") || {}, "project_id") || board.properties.astrogate_board?.project_id;
+    const project = value(sourceNode(board, "script") || {}, "project_id") || value(board, "project_id") || board.properties.astrogate_board?.project_id;
     const style = value(board, "style");
-    if (project) await request(`/projects/${project}/edit`, {action: "frame_aspect_ratio", aspect_ratio: ratio, include_props: Boolean(value(board, "include_props")), ...(style === undefined ? {} : {style})});
+    const resolution = value(board, "resolution"), quality = value(board, "quality");
+    if (project) await request(`/projects/${project}/edit`, {action: "frame_aspect_ratio", aspect_ratio: ratio,
+        ...(value(board, "include_props") === undefined ? {} : {include_props: Boolean(value(board, "include_props"))}),
+        ...(style === undefined ? {} : {style}), ...(resolution === undefined ? {} : {resolution}), ...(quality === undefined ? {} : {quality})});
     for (const node of nodes().filter(n => n.type === "AstroGateStoryboardFrame" && sourceNode(n, "board") === board && n.properties.astrogate_kind === "shot")) {
         setValue(node, "aspect_ratio", ratio);
         node.agRefresh?.();
+    }
+    for (const node of nodes().filter(n => n.type === "AstroGateStoryboardFrame" && sourceNode(n, "board") === board)) {
+        const previous = node.properties.astrogate_base_settings;
+        if (previous && previous[1] === value(node, "resolution") && previous[2] === value(node, "quality")) {
+            if (resolution !== undefined) setValue(node, "resolution", resolution);
+            if (quality !== undefined) setValue(node, "quality", quality);
+            node.properties.astrogate_base_settings = [value(node, "aspect_ratio"), value(node, "resolution"), value(node, "quality")];
+            node.agRefresh?.();
+        }
     }
 }
 async function queueNodes(targets, jobs = [], graph = null) {
@@ -918,12 +938,45 @@ function installSource(node) {
     node.agRefresh = () => { info.textContent = [node.properties.astrogate_filename || "未选择 TXT 文件", ...(node.properties.astrogate_chapters || []).map((v, i) => `${i + 1}. ${v}`)].join("\n"); };
     node.size = [390, 240];
 }
+async function openVideoProject(input, board = null) {
+    const projectId = String(input).match(/[0-9a-f]{32}/)?.[0];
+    if (!projectId) throw new Error("请输入已有视频项目 ID 或逻辑图链接。");
+    const {project} = await request(`/projects/${projectId}`);
+    if (!project.video_import?.board) throw new Error("该视频项目尚未完成分析。");
+    board ||= nodes().find(n => n.type === "AstroGateVideoAnalysis" && value(n, "project_id") === projectId);
+    if (board?.properties.astrogate_board?.project_id && board.properties.astrogate_board.project_id !== projectId) throw new Error("此节点已属于另一项目，请新建分析剧情节点。");
+    board ||= addNode("AstroGateVideoAnalysis", [140, 100]);
+    setValue(board, "project_id", projectId);
+    setValue(board, "text_model", project.settings.text_model);
+    setValue(board, "style", project.settings.style);
+    setValue(board, "density", project.settings.density);
+    setValue(board, "frame_aspect_ratio", project.settings.aspect_ratio);
+    setValue(board, "resolution", project.settings.resolution);
+    setValue(board, "quality", project.settings.quality);
+    setValue(board, "subtitle_source", project.video_import.source_mode || "语音转文字（CUDA）");
+    board.properties.astrogate_video_file = project.video_import.file;
+    board.properties.astrogate_source_mode = project.video_import.source_mode;
+    board.properties.astrogate_autogenerate = false;
+    if (!sourceNode(board, "video") && project.video_import.file) {
+        const source = addNode("LoadVideo", [board.pos[0] - 440, board.pos[1]]);
+        setValue(source, "file", project.video_import.file);
+        connect(source, 0, board, "video", "VIDEO");
+    }
+    await buildBoard(board, project.video_import.board);
+    board.agRefresh?.();
+    app.graph.change?.();
+    focusNode(board);
+    return board;
+}
 function installVideoAnalysis(node) {
     const project = node.widgets.find(w => w.name === "project_id");
     if (project) project.hidden = true;
     const root = element("div", undefined, "ag-native");
-    panelWidget(node, root, () => 185);
+    panelWidget(node, root, () => 270);
     const info = element("div", "连接‘加载视频’节点后开始", "ag-file-info");
+    const existing = element("input");
+    existing.placeholder = "已有项目 ID 或逻辑图链接";
+    existing.className = "ag-project-input";
     const analyze = async (resumeFailed = true) => {
         const source = sourceNode(node, "video");
         const file = value(source || {}, "file");
@@ -953,7 +1006,14 @@ function installVideoAnalysis(node) {
         await queueNodes([node]);
     };
     const controls = element("div", undefined, "ag-native-actions");
-    controls.append(button(node, "分析视频并建立剧情图", () => analyze(), "primary"),
+    controls.append(button(node, "分析视频并建立剧情图", () => analyze(), "primary"), existing,
+        button(node, "加载已有项目到画布", () => openVideoProject(existing.value, node)),
+        button(node, "应用画风与画质", async () => { await applyFrameAspect(node); await saveBoard(node); message(node, "根节点画风、画幅和画质已应用；已有图片不会自动重绘。"); }),
+        button(node, "整理四列排版", async () => {
+            const board = node.properties.astrogate_board;
+            if (!board) throw new Error("请先分析视频或加载已有项目。");
+            await buildBoard(node, board, true);
+        }),
         button(node, "重新分析", async () => { setValue(node, "analysis_revision", Number(value(node, "analysis_revision")) + 1); await analyze(false); }),
         button(node, "生成缺少的图片", async () => {
             const board = node.properties.astrogate_board;
@@ -962,6 +1022,11 @@ function installVideoAnalysis(node) {
                 n.properties.astrogate_chapter === board.chapter_id && !n.properties.astrogate_images?.length);
             if (targets.length) await generate(targets, true, node);
             else message(node, "图片已生成或正在排队。 ");
+        }),
+        button(node, "查看详细逻辑图", () => {
+            const projectId = value(node, "project_id");
+            if (!projectId) throw new Error("请先选择视频并开始分析。 ");
+            window.open(`/extensions/astrogate/logic.html?project=${encodeURIComponent(projectId)}`, "_blank", "noopener");
         }),
         button(node, "导出剧情图与原片帧", async () => {
             const board = node.properties.astrogate_board;
@@ -974,7 +1039,7 @@ function installVideoAnalysis(node) {
         }));
     root.append(info, controls, progressBar(node), node.agStatus);
     node.agRefresh = () => { info.textContent = node.properties.astrogate_video_file || "连接‘加载视频’节点后开始"; };
-    node.size = [430, 350];
+    node.size = [430, 450];
 }
 const scriptSources = new Map();
 async function analysisContext(node) {
@@ -1218,6 +1283,10 @@ function installFrame(node) {
     stage.append(image, empty);
     node.agImage = image;
     node.agEmpty = empty;
+    const sourceHint = element("div", "原片截图 · 可点击“生成图像”重绘", "ag-source-hint");
+    sourceHint.hidden = true;
+    node.agSourceHint = sourceHint;
+    stage.append(sourceHint);
     const detail = element("details");
     detail.open = !node.properties.astrogate_prompt_folded;
     const summary = element("summary", "提示词与生成参数");
@@ -1558,7 +1627,7 @@ async function poll() {
                 if (resumed && ["failed", "unknown"].includes(resumed.status)) delete node.properties.astrogate_resume_job;
                 if (job && active.has(job.status)) message(node, `正在分析人物、场景与分镜 · ${job.completed_chunks || 0}/${job.total_chunks || "?"} 块`, true);
                 else if (job && ["failed", "unknown"].includes(job.status)) message(node, `${job.error || "视频分镜分析未完成。"}\n点击“分析视频并建立剧情图”继续未完成步骤。`, false, true);
-                else if (job?.status === "succeeded" && !node.properties.astrogate_board) {
+                else if (job?.status === "succeeded" && (!node.properties.astrogate_board || (!node.agLayoutChecked && node.properties.astrogate_layout_version !== 7))) {
                     const {project: saved} = await request(`/projects/${project}`);
                     if (saved.video_import?.status === "completed") await buildBoard(node, saved.video_import.board);
                 }
@@ -1668,6 +1737,15 @@ app.registerExtension({
         style.href = new URL("./storyboard.css", import.meta.url).href;
         document.head.append(style);
         activityPanel = createActivityPanel();
+        const linkedProject = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("astrogate_project");
+        if (linkedProject) setTimeout(async () => {
+            try {
+                await openVideoProject(linkedProject);
+                const url = new URL(window.location.href);
+                url.searchParams.delete("astrogate_project");
+                window.history.replaceState(null, "", url);
+            } catch (error) { activityPanel.update([], error.message); }
+        }, 1000);
         api.addEventListener("execution_error", event => {
             const node = app.graph.getNodeById(event.detail.node_id);
             if (node?.type?.startsWith("AstroGate")) message(node, event.detail.exception_message || "执行失败，请查看任务信息", false, true);
